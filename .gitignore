@@ -1,0 +1,36 @@
+# Environment variables — contains sensitive keys, never commit
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# SQLite database files — generated at runtime
+*.db
+*.sqlite
+*.sqlite3
+
+# VS Code workspace settings
+.vscode/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Test coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
