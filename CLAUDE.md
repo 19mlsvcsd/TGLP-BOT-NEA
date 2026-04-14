@@ -288,3 +288,59 @@ project state before making any changes.
 - `_GAS_PRICE_REFERENCE_GWEI = 5.0` is a conservative BSC mainnet figure. Actual testnet gas will be ~0.1 Gwei; the reference is used only for the user-facing gas cost display.
 - `rebalance_threshold` in StrategyConfig is a raw score gap (not a percentage). Conservative (0.20), Balanced (0.15), Aggressive (0.10).
 - The decision engine never calls the blockchain. It is purely analytical. `executor.py` (Sprint 7) handles all on-chain interactions.
+
+---
+
+## Sprint 7 — Execution Engine — 2026-04-14
+
+### Completed
+- Created `config/abi/pancake_factory_v3.json`: V3 Factory ABI — `getPool(token0, token1, fee) → address`
+- Created `config/abi/pancake_router_v3.json`: V3 Router ABI — `exactInputSingle(params) → amountOut`, `refundETH()`
+- Created `config/abi/pancake_position_manager.json`: NonfungiblePositionManager ABI — `mint`, `increaseLiquidity`, `decreaseLiquidity`, `collect`, `positions`, `balanceOf`, `tokenOfOwnerByIndex`, `ownerOf`, `burn`
+- Implemented `core/executor.py`:
+  - `ExecutionResult` dataclass: success, action, tx_hashes, token_id, amounts, fees, gas used/cost, error
+  - `_round_tick(tick, tick_spacing)`: floor-divides tick to nearest multiple — handles negative ticks correctly
+  - `_apply_slippage(amount_wei, slippage)`: integer floor of amount × (1 − slippage)
+  - `_deadline()`: TX_DEADLINE_OFFSET seconds from now
+  - `_get_token_balance_raw(w3, token, wallet)`: raw ERC-20 balanceOf in smallest unit (not human-readable float)
+  - `_get_pool_tokens_and_tick(w3, pool)`: reads token0/token1/fee/tickSpacing/currentTick from pool contract
+  - `get_position(w3, token_id)`: read position data dict; None on failure
+  - `get_user_positions(w3, wallet)`: list of token IDs; empty list on failure
+  - `get_pool_address(w3, token0, token1, fee)`: factory lookup; None if pool doesn't exist
+  - `collect_fees(w3, token_id, wallet, key)`: collect(MAX_UINT128) for both tokens
+  - `remove_liquidity(w3, token_id, wallet, key, slippage)`: decreaseLiquidity + collect (skips decrease if liquidity=0)
+  - `swap_exact_input_single(w3, token_in, token_out, fee, amount_wei, recipient, key, slippage, bnb_value)`: single-hop V3 swap; amountOutMinimum=0 (testnet)
+  - `add_liquidity(w3, token0, token1, fee, amount0, amount1, tick_lower, tick_upper, wallet, key, slippage, bnb_value)`: mint new LP position
+  - `execute_allocate(w3, pool_data, amount_bnb, wallet, key, strategy)`: full allocate — BNB balance check → on-chain pool read → tick range → swap → approve → mint
+  - `execute_rebalance(w3, token_id, new_pool, amount_bnb, wallet, key, strategy)`: remove_liquidity + execute_allocate
+  - `execute_compound(w3, token_id, pool_data, wallet, key, strategy)`: collect_fees + increaseLiquidity
+- Created `tests/test_sprint7.py`: 14 tests across three tiers (unit / read-only on-chain / execution failure)
+
+### Files Created/Modified
+- `config/abi/pancake_factory_v3.json` — V3 Factory ABI
+- `config/abi/pancake_router_v3.json` — V3 Router ABI
+- `config/abi/pancake_position_manager.json` — NonfungiblePositionManager ABI
+- `core/executor.py` — full execution engine
+- `tests/test_sprint7.py` — Sprint 7 test suite
+
+### Tested
+- Unit: ExecutionResult defaults, _round_tick (positive/negative/exact), _apply_slippage (floor behaviour), _deadline (future timestamp), WBNB_ADDRESS format, all ABI files load with correct function names, tick range logic
+- Read-only on-chain: get_position(0) → None, get_user_positions(burn address) → [], get_pool_address(fake tokens) → None, all three contracts instantiate correctly
+- Execution safety: collect_fees with no funds fails via simulation rejection, execute_allocate fails on BNB balance pre-flight check, remove_liquidity with non-existent token_id returns None from get_position and errors cleanly
+
+### Current State
+- Execution engine is fully implemented and handles all three action types
+- All write functions call simulate_transaction() before sign_and_send() without exception
+- Read functions (get_position, get_user_positions, get_pool_address) handle RPC failures gracefully
+- Real LP transactions require funded testnet wallet — not tested end-to-end (by design)
+
+### Next Sprint
+- Sprint 8: Safety Controller
+  - `core/safety.py`: gas price guard, position size limits, emergency pause, safety lock, anomaly threshold escalation
+
+### Notes
+- **web3.py v7 API**: Use `contract.encode_abi("functionName", args=[params])` (snake_case). The v6 `contract.encodeABI(fn_name=...)` method does not exist in v7.6.0.
+- `_get_token_balance_raw()` returns raw ERC-20 units (not human-readable). Use this when passing amounts to contract calls. `get_token_balance()` in blockchain.py returns a float divided by 10**decimals — wrong for contract input.
+- Tick range: executor uses ±10 × tickSpacing around currentTick. This is wide enough to capture price movement on testnet while remaining a bounded range. Adjust the multiplier in `execute_allocate` for mainnet use.
+- `amountOutMinimum = 0` in swap_exact_input_single is intentional for testnet shallow liquidity. Set this to an oracle-derived minimum on mainnet.
+- `execute_compound` uses `increaseLiquidity` (same position, same NFT token ID) — not burn+remint. This preserves the position's fee accrual history.
