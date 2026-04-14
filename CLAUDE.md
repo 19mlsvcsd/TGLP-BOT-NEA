@@ -188,9 +188,48 @@ project state before making any changes.
 - `get_market_snapshot()` is ready for the analyser (Sprint 5) and decision engine (Sprint 6) to consume
 
 ### Next Sprint
-- Sprint 5: Analysis & Delta Engine
-  - `core/analyser.py`: PoolDelta dataclass, AnalysisResult dataclass, `analyse_cycle()`, `detect_anomalies()`, `get_pool_stability_score()`
-  - Test: mock two snapshots, verify deltas, anomaly detection, first-run case
+- Sprint 5: complete — see entry below.
+
+---
+
+## Sprint 5 — Analysis & Delta Engine — 2026-04-14
+
+### Completed
+- Implemented `core/analyser.py`:
+  - `PoolDelta` dataclass: per-pool change metrics (APR abs/pct, TVL abs/pct, volume pct, anomaly flags)
+  - `AnalysisResult` dataclass: full cycle output with `get_delta()` and `clean_pools()` helpers
+  - `analyse_cycle(current, previous)`: handles first-run, computes deltas for matched pools, counts new/dropped pools
+  - `detect_anomalies(delta)`: checks APR spike (>50% relative) and TVL drop (>30% relative)
+  - `get_pool_stability_score(address, delta_history)`: mean-abs-APR-change normalised to [0,1]; neutral 0.5 for no history
+  - `check_price_deviation(current, previous)`: on-chain sqrtPriceX96 comparison, >10% in one cycle = anomaly
+  - `significant_change` flag: set when any clean pool's APR moves ≥0.5pp
+- Created `tests/test_sprint5.py`: 10 tests
+
+### Files Created/Modified
+- `core/analyser.py` — full delta analysis module
+- `tests/test_sprint5.py` — Sprint 5 test suite
+
+### Tested
+- `analyse_cycle()` first run, stable cycle, significant change, new/dropped pool counting
+- APR spike and TVL drop anomaly detection (unit + integration)
+- `clean_pools()` correctly filters anomalous pools from a list
+- `get_pool_stability_score()`: neutral, stable, volatile, extreme, and address-filtered cases
+- `check_price_deviation()`: no on-chain data, large move, small move
+- Live two-cycle test with 38 real pools — 38 compared, correct significant_change=False
+
+### Current State
+- Full data pipeline is working: market_data → analyser → ready for decision_engine
+- Anomaly detection works on live data; near-zero APR pools (RUSD-BUSD etc.) correctly trigger spike flags on large relative nudges
+
+### Next Sprint
+- Sprint 6: Decision Engine
+  - `core/decision_engine.py`: Decision enum, DecisionResult dataclass, `filter_pools_by_strategy()`, `score_pools()`, `make_decision()`, `format_decision_summary()`
+
+### Notes
+- `significant_change=False` even with live anomalies — correct, because anomalous pools are excluded from the significance check
+- Near-zero APR pools will frequently trigger the relative-spike anomaly on any non-trivial data refresh; this is correct and expected behaviour
+- `_SIGNIFICANCE_APR_CHANGE_PP = 0.5` is the threshold for triggering decision engine re-evaluation; can be tuned in analyser.py if needed
+- `_STABILITY_NORMALISER_PP = 10.0` means a pool averaging 10pp APR change per cycle scores 0.0 stability
 
 ### Notes
 - **Critical discovery**: DeFiLlama uses `"pancakeswap-amm"` (not `"pancakeswap-amm-v3"`) for BSC pools. The V3 slug only covers Base and Ethereum chains. Both slugs are now accepted by the filter.
