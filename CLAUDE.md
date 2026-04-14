@@ -148,9 +148,55 @@ project state before making any changes.
 - All other commands return informative stub messages pointing to the sprint that will implement them
 
 ### Next Sprint
-- Sprint 4: Market Data & Pool Discovery
-  - `core/market_data.py`: DeFiLlama pool fetching, Binance price fetching, on-chain pool data, pair classification, snapshot assembly
-  - Test: call `get_market_snapshot()`, print top 10 pools by APR
+- Sprint 4: complete — see entry below.
+
+---
+
+## Sprint 4 — Market Data & Pool Discovery — 2026-04-14
+
+### Completed
+- Created `config/abi/pancake_pool_v3.json`: minimal pool ABI (slot0, liquidity, fee, token0, token1, tickSpacing) — full ABI added in Sprint 7
+- Implemented `core/market_data.py`:
+  - `PoolData` dataclass: all pool fields from API + on-chain sources
+  - `MarketSnapshot` dataclass: pool list + prices + warnings, with `top_pools()` and `get_pool()` helpers
+  - `fetch_defi_llama_pools()`: fetches and filters DeFiLlama yields API
+  - `fetch_token_prices()`: fetches BNB/ETH/BTC/CAKE from Binance public API
+  - `fetch_on_chain_pool_data(w3, address)`: reads slot0, liquidity, fee from pool contract
+  - `classify_pool_pair(symbol)`: classifies pair as stable-stable / stable-largecap / largecap-largecap / other
+  - `_is_pool_valid(raw)`: rejects zero-TVL, negative APR, missing fields
+  - `build_pool_snapshot(raw_pools, prices, w3, enrich_on_chain)`: assembles validated PoolData list sorted by APR
+  - `get_market_snapshot(...)`: cached entry point (30s TTL), handles all API failures gracefully
+  - `invalidate_cache()`: forces fresh fetch on next call
+- Created `tests/test_sprint4.py`: 7 tests (4 unit + 3 live API)
+
+### Files Created/Modified
+- `config/abi/pancake_pool_v3.json` — pool ABI for slot0/liquidity/fee reads
+- `core/market_data.py` — full market data module
+- `tests/test_sprint4.py` — Sprint 4 test suite
+
+### Tested
+- `classify_pool_pair()` — all 4 pair types, edge cases (empty string, unknown pairs)
+- `_is_pool_valid()` — rejects zero TVL, negative TVL, negative APR, empty address
+- `build_pool_snapshot()` — 2 valid pools + 2 rejected, correct APR sort, fee tier conversion (DeFiLlama fraction → bps)
+- `MarketSnapshot` — pool count, `top_pools()`, `get_pool()` lookup
+- Live DeFiLlama: 38 PancakeSwap BSC pools fetched; top pool MBOX-WBNB at 15.20% APR
+- Live Binance: BNB $614.82, ETH $2,317.48, BTC $74,005.90
+- Live `get_market_snapshot()`: 38 pools assembled in one call; cache returns same object on second call
+
+### Current State
+- Market data layer is fully functional with live mainnet pool data
+- `get_market_snapshot()` is ready for the analyser (Sprint 5) and decision engine (Sprint 6) to consume
+
+### Next Sprint
+- Sprint 5: Analysis & Delta Engine
+  - `core/analyser.py`: PoolDelta dataclass, AnalysisResult dataclass, `analyse_cycle()`, `detect_anomalies()`, `get_pool_stability_score()`
+  - Test: mock two snapshots, verify deltas, anomaly detection, first-run case
+
+### Notes
+- **Critical discovery**: DeFiLlama uses `"pancakeswap-amm"` (not `"pancakeswap-amm-v3"`) for BSC pools. The V3 slug only covers Base and Ethereum chains. Both slugs are now accepted by the filter.
+- DeFiLlama fee tiers are stored as fractions (e.g., `0.0001` = 0.01%); on-chain values are in bps (`100` = 0.01%). `build_pool_snapshot()` converts fractions to bps.
+- `enrich_on_chain=False` by default — on-chain enrichment adds ~0.1s per pool and is only used for `/explore`.
+- Cache TTL is 30s (SNAPSHOT_CACHE_SECONDS in settings.py). The dispatcher invalidates the cache before a manual `/allocate` cycle.
 
 ### Notes
 - `format_strategy_summary` MarkdownV2-escapes all values including BNB amounts (`.` → `\.`) — tests must check for escaped form
