@@ -67,3 +67,43 @@ project state before making any changes.
 - Strategy profiles are defined as `StrategyConfig` dataclass instances in settings.py and imported by `core/strategy_manager.py` in Sprint 3.
 - DeFiLlama returns mainnet data only. For testnet development, mainnet pool data is used for discovery/scoring and testnet for execution. This is a documented known limitation.
 - The `.env` file must be created manually by copying `.env.example` — it is gitignored and will never be committed.
+
+---
+
+## Sprint 2 — Blockchain Connection Layer — 2026-04-14
+
+### Completed
+- Implemented `helpers/blockchain.py`: full Web3 connection layer with all required functions
+- Created `config/abi/erc20.json`: standard ERC-20 ABI (balanceOf, approve, allowance, transfer, transferFrom, name, symbol, decimals, totalSupply + Transfer/Approval events)
+
+### Files Created/Modified
+- `helpers/blockchain.py` — Web3 connection, wallet derivation, BNB/token balance reads, gas estimation, tx building, simulation via eth_call, sign+broadcast+receipt, ERC-20 approval with allowance pre-check, RPC latency measurement
+- `config/abi/erc20.json` — standard ERC-20 ABI
+
+### Tested
+- `get_web3()` — connects to BSC Testnet, verifies chain ID 97, reads current block number (101,663,765)
+- `get_rpc_latency_ms()` — measures RPC round-trip (~79 ms on test run)
+- `get_wallet_address()` — derives correct address from well-known test private key (Hardhat account #0)
+- `get_bnb_balance()` — reads balance of PancakeSwap factory address (0.0 BNB, expected for a contract)
+- `get_gas_price_gwei()` — reads current gas price (0.10 Gwei on testnet)
+- `simulate_transaction()` — correctly returns False for a transaction with an invalid function selector
+
+### Current State
+- Blockchain connection layer is fully implemented
+- Bot can connect to BSC Testnet, derive wallet addresses, read BNB balances, estimate gas, build/simulate/sign/broadcast transactions, and handle ERC-20 approvals
+- No Telegram bot yet — that is Sprint 3
+
+### Next Sprint
+- Sprint 3: Telegram Bot Core & Onboarding
+  - `core/strategy_manager.py`: StrategyProfile dataclass, UserSession class, SessionManager
+  - `helpers/formatters.py`: Telegram message formatting helpers
+  - `bot/keyboards.py`: all inline keyboard layouts
+  - `bot/onboarding.py`: full /start ConversationHandler (wallet → strategy → prefs → confirm)
+  - `bot/callbacks.py`, `bot/commands.py` (all commands, /help fully implemented)
+  - `bot/app.py`: full Application setup replacing the Sprint 1 stub
+
+### Notes
+- `sign_and_send()` uses `signed.raw_transaction` (web3.py v7 attribute name, not `rawTransaction`).
+- `estimate_gas()` applies a 20% buffer over the raw estimate to reduce out-of-gas failures.
+- All transactions include `chainId: 97` to prevent replay attacks on mainnet.
+- `simulate_transaction()` must be called before every `sign_and_send()` in executor.py — enforced by design, not just convention.
