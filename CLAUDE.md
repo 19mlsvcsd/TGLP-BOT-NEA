@@ -107,3 +107,54 @@ project state before making any changes.
 - `estimate_gas()` applies a 20% buffer over the raw estimate to reduce out-of-gas failures.
 - All transactions include `chainId: 97` to prevent replay attacks on mainnet.
 - `simulate_transaction()` must be called before every `sign_and_send()` in executor.py — enforced by design, not just convention.
+
+---
+
+## Sprint 3 — Telegram Bot Core & Onboarding — 2026-04-14
+
+### Completed
+- Implemented `core/strategy_manager.py`: `StrategyProfile` (alias of `StrategyConfig`), `UserSession` dataclass with `has_position()` / `is_operational()` helpers, `SessionManager` class with full CRUD, `session_manager` module-level singleton
+- Implemented `helpers/formatters.py`: `escape_md` (MarkdownV2 escaping), `format_bnb/usd/pct/large_usd/token_amount`, `format_timedelta_short`, `format_timestamp`, `short_address`, `tx_hash_link`, `format_pool_info`, `format_tx_summary`, `format_strategy_summary`
+- Implemented `bot/keyboards.py`: 12 keyboard functions covering strategy selection, custom pair/compound selection, compound toggle, auto-execute choice, confirm/cancel, main menu, settings panel (with live state labels), pool explorer + detail, history pagination, watchlist, action confirmation, reset confirmation
+- Implemented `bot/onboarding.py`: full 10-state ConversationHandler for `/start` — private key receive+immediate delete, wallet derivation, BNB balance read, preset and custom strategy flows, compound preference, auto-execute preference, final confirmation, session creation with key cleared from `user_data` immediately after
+- Implemented `bot/commands.py`: stub handlers for all 10 commands + fully implemented `/help` with per-command descriptions and DeFi concept explainers (`/help lp`, `/help apr`, `/help tvl`, `/help il`, `/help v3`)
+- Implemented `bot/callbacks.py`: full callback router (`handle_callback`) dispatching to sub-handlers for menu, settings toggles (compound/auto-execute/pause are live), pool explorer, history, watchlist, action confirmation, and reset
+- Implemented `bot/conversations.py`: `/watch` ConversationHandler stub (3-state skeleton) + `custom_strategy_handler` placeholder for Sprint 11
+- Replaced `bot/app.py` Sprint 1 stub with full `Application` setup, handler registration in correct priority order, `run_polling(drop_pending_updates=True)`
+- Created `tests/test_sprint3.py`: 5 test functions covering all Sprint 3 modules
+
+### Files Created/Modified
+- `core/strategy_manager.py` — UserSession dataclass, SessionManager, singleton
+- `helpers/formatters.py` — full Telegram message formatting library
+- `bot/keyboards.py` — all 12 inline keyboard layout functions
+- `bot/onboarding.py` — full /start ConversationHandler (10 states)
+- `bot/commands.py` — all command stubs + complete /help
+- `bot/callbacks.py` — callback router + live settings toggles
+- `bot/conversations.py` — /watch stub + custom_strategy placeholder
+- `bot/app.py` — full Application setup (replaced Sprint 1 stub)
+- `tests/test_sprint3.py` — Sprint 3 test suite
+
+### Tested
+- `core/strategy_manager.py`: UserSession paused/safety_locked flags, SessionManager CRUD, singleton identity
+- `helpers/formatters.py`: escape_md covers all MarkdownV2 special chars, number formatters, timedelta, address shortening, format_strategy_summary content
+- `bot/keyboards.py`: structure, callback_data values, pagination nav, settings label toggling
+- All bot modules import cleanly; ConversationHandler has 10 states
+- PTBUserWarning about `per_message=False` is expected/informational — not an error
+
+### Current State
+- Telegram bot is fully runnable: `python main.py` connects to Telegram, shows onboarding on `/start`, allows strategy selection, creates a `UserSession` in memory
+- Private key security: message deleted immediately, key cleared from `user_data` after session creation, never persisted
+- Settings toggles (compound, auto-execute, pause) are live even in Sprint 3
+- All other commands return informative stub messages pointing to the sprint that will implement them
+
+### Next Sprint
+- Sprint 4: Market Data & Pool Discovery
+  - `core/market_data.py`: DeFiLlama pool fetching, Binance price fetching, on-chain pool data, pair classification, snapshot assembly
+  - Test: call `get_market_snapshot()`, print top 10 pools by APR
+
+### Notes
+- `format_strategy_summary` MarkdownV2-escapes all values including BNB amounts (`.` → `\.`) — tests must check for escaped form
+- `history_keyboard()` returns `InlineKeyboardMarkup` with `.inline_keyboard` as a tuple, not a list — compare with `len()` not `== []`
+- The `per_message=False` PTBUserWarning on `ConversationHandler` instantiation is unavoidable without `per_message=True` — accepted as informational
+- `session_manager` singleton is in `core/strategy_manager.py` — import with `from core.strategy_manager import session_manager`
+- `bot/app.py` uses `drop_pending_updates=True` so stale messages from restarts are discarded
