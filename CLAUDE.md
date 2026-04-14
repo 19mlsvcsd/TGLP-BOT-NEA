@@ -243,3 +243,48 @@ project state before making any changes.
 - The `per_message=False` PTBUserWarning on `ConversationHandler` instantiation is unavoidable without `per_message=True` — accepted as informational
 - `session_manager` singleton is in `core/strategy_manager.py` — import with `from core.strategy_manager import session_manager`
 - `bot/app.py` uses `drop_pending_updates=True` so stale messages from restarts are discarded
+
+---
+
+## Sprint 6 — Decision Engine — 2026-04-14
+
+### Completed
+- Implemented `core/decision_engine.py`:
+  - `Decision` enum: NO_ACTION, ALLOCATE, REBALANCE, COMPOUND
+  - `ScoredPool` dataclass: PoolData + composite score + four normalised component scores + `score_breakdown()` helper
+  - `DecisionResult` dataclass: action, target pool, current pool, reasoning, scored_pools list, gas estimates, pool counts
+  - `filter_pools_by_strategy(pools, strategy, analysis_result)`: pair type filter → TVL floor filter → anomaly exclusion filter
+  - `score_pools(pools, delta_history)`: min-max normalisation per metric, 0.5 for tied metrics, weighted composite (0.40 APR + 0.30 TVL + 0.20 stability + 0.10 volume), sorted descending
+  - `make_decision(scored_pools, current_position, strategy, analysis_result, compound_enabled, fees_available, pools_filtered_count)`: 5-case decision tree
+  - `format_decision_summary(result)`: MarkdownV2 Telegram message with action icon, reasoning, target pool details, and gas estimate
+  - `_estimate_gas(action)`: gas unit and BNB cost estimates using conservative 5 Gwei reference price
+- Created `tests/test_sprint6.py`: 18 tests (17 unit + 1 live API)
+
+### Files Created/Modified
+- `core/decision_engine.py` — full decision engine
+- `tests/test_sprint6.py` — Sprint 6 test suite
+
+### Tested
+- `filter_pools_by_strategy()` — pair type filtering, TVL floor, anomaly exclusion, no analysis_result (first run)
+- `score_pools()` — single pool (all 0.5), ranking order, empty input, identical pools (all 0.5)
+- `make_decision()` — all 5 outcomes: no pools (NO_ACTION), no position (ALLOCATE), better pool (REBALANCE), compound (COMPOUND), stable (NO_ACTION); threshold not met (NO_ACTION); current pool anomalous/filtered (forced REBALANCE)
+- `format_decision_summary()` — smoke test all four Decision values
+- `_estimate_gas()` — correct unit counts and BNB costs for all actions
+- Live pipeline: 38 pools fetched, 5 passed BALANCED_GROWTH filter, top pool CAKE-USDT (score: 0.590), decision: ALLOCATE
+
+### Current State
+- Full analysis-to-decision pipeline is working: market_data → analyser → decision_engine
+- Decision engine is ready to be called by the dispatcher (Sprint 10) and executor (Sprint 7)
+
+### Next Sprint
+- Sprint 7: Execution Engine
+  - `core/executor.py`: full execution layer — swap, add liquidity, remove liquidity, collect fees, compound
+  - `config/abi/pancake_router_v3.json`: PancakeSwap V3 Router ABI
+  - `config/abi/pancake_factory_v3.json`: PancakeSwap V3 Factory ABI
+  - `config/abi/pancake_position_manager.json`: NonfungiblePositionManager ABI
+
+### Notes
+- **Min-max normalisation edge case**: With only two pools, even tiny APR/TVL differences normalise to [0, 1] and produce a large score gap. Tests for threshold-not-met behaviour require a third "anchor" pool with clearly inferior values to keep the gap small. This is expected and correct behaviour — the normalisation is relative to the pool set being scored.
+- `_GAS_PRICE_REFERENCE_GWEI = 5.0` is a conservative BSC mainnet figure. Actual testnet gas will be ~0.1 Gwei; the reference is used only for the user-facing gas cost display.
+- `rebalance_threshold` in StrategyConfig is a raw score gap (not a percentage). Conservative (0.20), Balanced (0.15), Aggressive (0.10).
+- The decision engine never calls the blockchain. It is purely analytical. `executor.py` (Sprint 7) handles all on-chain interactions.
