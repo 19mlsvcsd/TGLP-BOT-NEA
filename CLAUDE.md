@@ -441,9 +441,7 @@ project state before making any changes.
 - Alerts are ready for the scheduler to call check_all_alerts each cycle
 
 ### Next Sprint
-- Sprint 10: Scheduler & Dispatcher
-  - `core/scheduler.py`: APScheduler wrapper, per-user job management, cycle timing
-  - `core/dispatcher.py`: full analysis-decision-execution pipeline per user cycle
+- Sprint 10: complete — see entry below.
 
 ### Notes
 - `estimate_position_value` uses conservative pricing: stablecoins at $1, WBNB/BNB at live price, all other tokens at $0. This prevents overstatement of P&L but will undercount value when exotic tokens are involved.
@@ -451,3 +449,55 @@ project state before making any changes.
 - `check_all_alerts` accepts `prices` dict for future token-price alert checking; currently only pool-based alerts are implemented.
 - Watchlist tests use `tempfile.mkstemp()` for isolated DB files, then `os.unlink()` for cleanup. The default DB (tglp_bot.db) is never touched by tests.
 - The precompile address `0x000...001` has ~32 BNB on BSC Testnet (confirmed in live test). Do not rely on it for "zero balance" scenarios.
+
+---
+
+## Sprint 10 — Scheduler & Dispatcher — 2026-04-15
+
+### Completed
+- Implemented `core/scheduler.py`:
+  - `BotScheduler` class wrapping APScheduler `BackgroundScheduler`
+  - `start()` / `shutdown()` — lifecycle; `is_running` property
+  - `add_user_job(chat_id, callback)` — registers interval job every CYCLE_INTERVAL_SECONDS; `replace_existing=True` prevents duplicates
+  - `remove_user_job(chat_id)` — returns True if job existed, False otherwise
+  - `pause_user_job(chat_id)` / `resume_user_job(chat_id)` — pause/resume without removing; return True/False
+  - `has_job(chat_id)` — True for running or paused jobs
+  - `active_job_count()` — total registered jobs
+  - `bot_scheduler` module-level singleton
+- Implemented `core/dispatcher.py`:
+  - `_build_position_dict(pool_data, token_id, amount0, amount1)` — builds the `session.current_position` dict; parses token symbols from pool_data.symbol (split on '-')
+  - `_handle_allocate(session, decision, snapshot, w3)` — reads wallet balance, computes amount_bnb, runs pre-execution safety checks, calls execute_allocate, updates session state and DB on success
+  - `_handle_rebalance(session, decision, snapshot, w3)` — same pattern for rebalance; increments session.rebalance_count
+  - `_handle_compound(session, decision, snapshot, w3)` — calls execute_compound; records gas cost
+  - `run_cycle(session, notify_func, w3)` — full 8-step pipeline: operational check → snapshot → analyse → alerts → anomaly escalation → decide → execute/propose → timing warning
+  - `build_cycle_callback(session, notify_func, w3)` — returns a zero-argument closure that looks up the current session from session_manager at call time (avoids stale session captures)
+- Created `tests/test_sprint10.py`: 12 tests across two tiers
+
+### Files Created/Modified
+- `core/scheduler.py` — APScheduler wrapper + bot_scheduler singleton
+- `core/dispatcher.py` — full cycle pipeline
+- `tests/test_sprint10.py` — Sprint 10 test suite
+
+### Tested
+- Scheduler: start/stop, add job (has_job=True, count=1), remove (True/False), replace (count stays 1), pause/resume (True), pause nonexistent (False)
+- Dispatcher unit: _build_position_dict keys, paused session returns immediately (no notify), locked session returns immediately (no notify), build_cycle_callback returns callable and finds session at call time
+- Integration (live): full cycle on AGGRESSIVE_ALPHA session → 37 pools → 1 ALLOCATE proposal sent; anomaly counter = 0 after clean cycle
+
+### Current State
+- Scheduler and dispatcher are fully implemented
+- run_cycle is wired to the full pipeline: market_data → analyser → alerts → safety → decision → execution
+- notify_func decouples the dispatcher from Telegram — app.py injects it during job registration
+- Execution path (auto_execute=True) is implemented but not tested end-to-end (requires funded wallet — by design)
+
+### Next Sprint
+- Sprint 11: Wire Up All Commands
+  - Update `bot/commands.py`: /dashboard, /allocate, /status, /history, /explore, /export, /reset stubs → real implementations
+  - Update `bot/callbacks.py`: action confirmation callbacks, explorer navigation
+  - Update `bot/conversations.py`: /watch ConversationHandler (full 3-state flow)
+  - Update `bot/app.py`: wire scheduler start/stop, inject notify_func
+
+### Notes
+- `notify_func` signature: `(chat_id: int, message: str) -> None`. In app.py, this wraps `asyncio.run_coroutine_threadsafe(bot.send_message(chat_id, message), loop)` to bridge the APScheduler background thread to the asyncio Telegram event loop.
+- `build_cycle_callback` looks up `session_manager.get(chat_id)` at call time, not at registration time. This ensures session mutations (position state, flags) are visible in subsequent cycles without re-registering the job.
+- `misfire_grace_time = CYCLE_INTERVAL_SECONDS` — if a cycle fires late (e.g., due to a long-running API call), APScheduler will still run it if the delay is within one interval. After that, it skips and waits for the next slot.
+- Live test: 37 pools fetched, AGGRESSIVE_ALPHA strategy, ALLOCATE decision, 1 notify call with formatted decision summary.
