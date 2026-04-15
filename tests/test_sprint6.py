@@ -56,7 +56,7 @@ def _make_analysis_result(anomalous_addresses=None):
 
 
 # ---------------------------------------------------------------------------
-# Test 1: filter_pools_by_strategy — pair type filtering
+# Test 1: filter_pools_by_strategy: pair type filtering
 # ---------------------------------------------------------------------------
 
 def test_filter_pair_type():
@@ -79,11 +79,11 @@ def test_filter_pair_type():
     assert "0xC" not in addresses
     assert "0xD" not in addresses
 
-    print("[PASS] filter_pools_by_strategy() — pair type filtering")
+    print("[PASS] filter_pools_by_strategy(): pair type filtering")
 
 
 # ---------------------------------------------------------------------------
-# Test 2: filter_pools_by_strategy — TVL floor
+# Test 2: filter_pools_by_strategy: TVL floor
 # ---------------------------------------------------------------------------
 
 def test_filter_tvl_floor():
@@ -104,11 +104,11 @@ def test_filter_tvl_floor():
     assert "0xB" not in addresses
     assert "0xC" in addresses
 
-    print("[PASS] filter_pools_by_strategy() — TVL floor")
+    print("[PASS] filter_pools_by_strategy(): TVL floor")
 
 
 # ---------------------------------------------------------------------------
-# Test 3: filter_pools_by_strategy — anomaly exclusion
+# Test 3: filter_pools_by_strategy: anomaly exclusion
 # ---------------------------------------------------------------------------
 
 def test_filter_anomalies():
@@ -126,11 +126,11 @@ def test_filter_anomalies():
     assert len(result) == 1
     assert result[0].pool == "0xA"
 
-    print("[PASS] filter_pools_by_strategy() — anomaly exclusion")
+    print("[PASS] filter_pools_by_strategy(): anomaly exclusion")
 
 
 # ---------------------------------------------------------------------------
-# Test 4: filter_pools_by_strategy — no analysis_result (first run)
+# Test 4: filter_pools_by_strategy: no analysis_result (first run)
 # ---------------------------------------------------------------------------
 
 def test_filter_no_analysis():
@@ -146,11 +146,11 @@ def test_filter_no_analysis():
     result = filter_pools_by_strategy(pools, strategy, analysis_result=None)
 
     assert len(result) == 2
-    print("[PASS] filter_pools_by_strategy() — no analysis_result (first run)")
+    print("[PASS] filter_pools_by_strategy(): no analysis_result (first run)")
 
 
 # ---------------------------------------------------------------------------
-# Test 5: score_pools — single pool receives 0.5 for all normalised components
+# Test 5: score_pools: single pool receives 0.5 for all normalised components
 # ---------------------------------------------------------------------------
 
 def test_score_single_pool():
@@ -169,11 +169,11 @@ def test_score_single_pool():
     # Score = 0.40*0.5 + 0.30*0.5 + 0.20*0.5 + 0.10*0.5 = 0.5
     assert abs(sp.score - 0.5) < 1e-9
 
-    print("[PASS] score_pools() — single pool: all normalised components = 0.5")
+    print("[PASS] score_pools(): single pool, all normalised components = 0.5")
 
 
 # ---------------------------------------------------------------------------
-# Test 6: score_pools — ranking order: high APR, high TVL, high volume
+# Test 6: score_pools: ranking order: high APR, high TVL, high volume
 # ---------------------------------------------------------------------------
 
 def test_score_ranking():
@@ -208,11 +208,11 @@ def test_score_ranking():
     for i in range(len(scored) - 1):
         assert scored[i].score >= scored[i + 1].score, "Scores not sorted descending"
 
-    print("[PASS] score_pools() — ranking order correct, normalisation correct")
+    print("[PASS] score_pools(): ranking order correct, normalisation correct")
 
 
 # ---------------------------------------------------------------------------
-# Test 7: score_pools — empty input returns empty list
+# Test 7: score_pools: empty input returns empty list
 # ---------------------------------------------------------------------------
 
 def test_score_empty():
@@ -220,11 +220,11 @@ def test_score_empty():
 
     result = score_pools([])
     assert result == []
-    print("[PASS] score_pools() — empty input returns empty list")
+    print("[PASS] score_pools(): empty input returns empty list")
 
 
 # ---------------------------------------------------------------------------
-# Test 8: score_pools — identical pools get 0.5 for tied metrics
+# Test 8: score_pools: identical pools get 0.5 for tied metrics
 # ---------------------------------------------------------------------------
 
 def test_score_identical_pools():
@@ -242,11 +242,11 @@ def test_score_identical_pools():
         assert sp.norm_volume == 0.5
         assert abs(sp.score - 0.5) < 1e-9
 
-    print("[PASS] score_pools() — identical pools all score 0.5")
+    print("[PASS] score_pools(): identical pools all score 0.5")
 
 
 # ---------------------------------------------------------------------------
-# Test 9: make_decision — no pools --> NO_ACTION
+# Test 9: make_decision: no pools --> NO_ACTION
 # ---------------------------------------------------------------------------
 
 def test_decision_no_pools():
@@ -271,7 +271,7 @@ def test_decision_no_pools():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: make_decision — no position --> ALLOCATE
+# Test 10: make_decision: no position --> ALLOCATE
 # ---------------------------------------------------------------------------
 
 def test_decision_allocate():
@@ -299,11 +299,11 @@ def test_decision_allocate():
     assert result.estimated_gas_bnb > 0
     assert result.pools_considered == 2
 
-    print("[PASS] make_decision() — no position --> ALLOCATE")
+    print("[PASS] make_decision(): no position --> ALLOCATE")
 
 
 # ---------------------------------------------------------------------------
-# Test 11: make_decision — better pool found --> REBALANCE
+# Test 11: make_decision: better pool found --> REBALANCE
 # ---------------------------------------------------------------------------
 
 def test_decision_rebalance():
@@ -335,17 +335,17 @@ def test_decision_rebalance():
     assert result.current_pool.pool == "0xA"
     assert result.estimated_gas_units > 0
 
-    print("[PASS] make_decision() — better pool found --> REBALANCE")
+    print("[PASS] make_decision(): better pool found --> REBALANCE")
 
 
 # ---------------------------------------------------------------------------
-# Test 12: make_decision — position stable, compound enabled --> COMPOUND
+# Test 12: make_decision: position stable, compound enabled --> COMPOUND
 # ---------------------------------------------------------------------------
 
 def test_decision_compound():
     from core.decision_engine import make_decision, Decision, score_pools
 
-    # Only one pool — current pool — no rebalance opportunity
+    # Only one pool (current pool), no rebalance opportunity
     pool = _make_pool("0xA", "USDT-USDC", apr=5.0, tvl=500_000)
     strategy = _make_strategy(pair_types=["stable-stable"], min_tvl=0, rebalance_threshold=0.15)
     scored = score_pools([pool])
@@ -366,11 +366,11 @@ def test_decision_compound():
     assert result.target_pool.pool == "0xA"
     assert result.estimated_gas_units > 0
 
-    print("[PASS] make_decision() — compound enabled + fees available --> COMPOUND")
+    print("[PASS] make_decision(): compound enabled + fees available --> COMPOUND")
 
 
 # ---------------------------------------------------------------------------
-# Test 13: make_decision — stable position, no compound --> NO_ACTION
+# Test 13: make_decision: stable position, no compound --> NO_ACTION
 # ---------------------------------------------------------------------------
 
 def test_decision_no_action_stable():
@@ -394,11 +394,11 @@ def test_decision_no_action_stable():
     assert result.action == Decision.NO_ACTION
     assert result.target_pool is None
 
-    print("[PASS] make_decision() — stable position, no compound --> NO_ACTION")
+    print("[PASS] make_decision(): stable position, no compound --> NO_ACTION")
 
 
 # ---------------------------------------------------------------------------
-# Test 14: make_decision — rebalance threshold not met --> NO_ACTION (not REBALANCE)
+# Test 14: make_decision: rebalance threshold not met --> NO_ACTION (not REBALANCE)
 # ---------------------------------------------------------------------------
 
 def test_decision_threshold_not_met():
@@ -413,7 +413,7 @@ def test_decision_threshold_not_met():
 
     # pool_a (current): good but not top
     # pool_b (slightly better): top scored pool
-    # pool_c (anchor): clearly worst — forces normalisation range to be wide
+    # pool_c (anchor): clearly worst, forces normalisation range to be wide
     pool_a = _make_pool("0xA", "USDT-USDC", apr=10.0, tvl=500_000, volume=100_000)
     pool_b = _make_pool("0xB", "USDT-DAI",  apr=11.0, tvl=520_000, volume=100_000)
     pool_c = _make_pool("0xC", "USDT-BUSD", apr=1.0,  tvl=100_000, volume=100_000)
@@ -448,11 +448,11 @@ def test_decision_threshold_not_met():
         f"Score gap was {scored[0].score - next(s for s in scored if s.pool.pool == '0xA').score:.3f}"
     )
 
-    print("[PASS] make_decision() — rebalance threshold not met --> NO_ACTION")
+    print("[PASS] make_decision(): rebalance threshold not met --> NO_ACTION")
 
 
 # ---------------------------------------------------------------------------
-# Test 15: make_decision — current pool is anomalous (not in scored list)
+# Test 15: make_decision: current pool is anomalous (not in scored list)
 # ---------------------------------------------------------------------------
 
 def test_decision_current_pool_anomalous():
@@ -479,11 +479,11 @@ def test_decision_current_pool_anomalous():
     assert result.target_pool.pool == "0xB"
     assert result.current_pool is None   # current pool data not available
 
-    print("[PASS] make_decision() — current pool anomalous --> forced REBALANCE")
+    print("[PASS] make_decision(): current pool anomalous --> forced REBALANCE")
 
 
 # ---------------------------------------------------------------------------
-# Test 16: format_decision_summary — smoke test for all four actions
+# Test 16: format_decision_summary: smoke test for all four actions
 # ---------------------------------------------------------------------------
 
 def test_format_decision_summary():
@@ -517,11 +517,11 @@ def test_format_decision_summary():
         assert action_label in summary or action_label.lower() in summary.lower(), \
             f"Expected action label '{action_label}' in summary"
 
-    print("[PASS] format_decision_summary() — smoke test all four actions")
+    print("[PASS] format_decision_summary(): smoke test all four actions")
 
 
 # ---------------------------------------------------------------------------
-# Test 17: _estimate_gas — correct unit/BNB values for each action
+# Test 17: _estimate_gas: correct unit/BNB values for each action
 # ---------------------------------------------------------------------------
 
 def test_estimate_gas():
@@ -555,7 +555,7 @@ def test_estimate_gas():
     expected_comp = GAS_LIMIT_COLLECT + GAS_LIMIT_ADD_LIQUIDITY
     assert units_comp == expected_comp
 
-    print("[PASS] _estimate_gas() — correct units and BNB for all actions")
+    print("[PASS] _estimate_gas(): correct units and BNB for all actions")
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +577,7 @@ def test_live_pipeline():
     snap = get_market_snapshot()
 
     if not snap.pools:
-        print("[SKIP] test_live_pipeline() — no pools from API")
+        print("[SKIP] test_live_pipeline(): no pools from API")
         return
 
     strategy = BALANCED_GROWTH
@@ -586,7 +586,7 @@ def test_live_pipeline():
     assert isinstance(filtered, list)
 
     if not filtered:
-        print(f"[SKIP] test_live_pipeline() — no pools passed BALANCED_GROWTH filter "
+        print(f"[SKIP] test_live_pipeline(): no pools passed BALANCED_GROWTH filter "
               f"(tried {len(snap.pools)} pools)")
         return
 
@@ -613,7 +613,7 @@ def test_live_pipeline():
     assert result.pools_considered == len(filtered)
 
     print(
-        f"[PASS] test_live_pipeline() — "
+        f"[PASS] test_live_pipeline(): "
         f"{len(snap.pools)} pools fetched, "
         f"{len(filtered)} passed BALANCED_GROWTH filter, "
         f"top pool: {scored[0].pool.symbol} (score: {scored[0].score:.3f}), "

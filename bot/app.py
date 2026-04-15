@@ -7,11 +7,11 @@ This module is the integration point for the entire bot/ package. It:
 1. Builds the python-telegram-bot Application object with the bot token.
 2. Registers all handlers in the correct priority order.
 3. Wires up the Web3 connection, notify_func, and BotScheduler via post_init.
-4. Starts the polling loop (blocking call — runs until Ctrl+C).
+4. Starts the polling loop (blocking call, runs until Ctrl+C).
 
 Handler registration order matters in python-telegram-bot:
 - ConversationHandlers must be registered BEFORE generic CommandHandlers,
-  because both will match /start — the ConversationHandler must win.
+  because both will match /start, so the ConversationHandler must win.
 - The generic CallbackQueryHandler (callbacks.py) must be registered LAST
   as a catch-all for any callback not handled by a ConversationHandler.
 
@@ -72,7 +72,7 @@ async def _post_init(application: Application) -> None:
     from helpers.blockchain import get_web3
     from core.scheduler import bot_scheduler
 
-    # Web3 connection — one instance shared across all cycles and commands.
+    # Web3 connection: one instance shared across all cycles and commands.
     w3 = get_web3()
     application.bot_data["w3"] = w3
 
@@ -96,7 +96,7 @@ async def _post_init(application: Application) -> None:
 
     application.bot_data["notify_func"] = notify_func
 
-    # Start the background scheduler — safe to call even if already started.
+    # Start the background scheduler, safe to call even if already started.
     bot_scheduler.start()
     logger.info("post_init complete: Web3 connected, notify_func ready, scheduler started.")
 
@@ -127,7 +127,7 @@ def _build_application() -> Application:
     if not token:
         raise RuntimeError(
             "TELEGRAM_BOT_TOKEN is not set. "
-            "This should have been caught by main.py — check check_env()."
+            "This should have been caught by main.py. Check check_env()."
         )
 
     app = (
@@ -141,15 +141,15 @@ def _build_application() -> Application:
     # ── Register handlers ─────────────────────────────────────────────────
     # Order is significant. Handlers are checked in registration order.
 
-    # 1. Onboarding ConversationHandler — must be first so /start enters the
+    # 1. Onboarding ConversationHandler: must be first so /start enters the
     #    conversation rather than hitting the fallback CommandHandler.
     app.add_handler(onboarding_handler)
 
-    # 2. /watch ConversationHandler — before the generic /watch CommandHandler
+    # 2. /watch ConversationHandler: before the generic /watch CommandHandler
     #    stub so that the conversation takes over when the user is mid-flow.
     app.add_handler(watch_conversation_handler)
 
-    # 3. /customstrategy ConversationHandler — before the catch-all callback
+    # 3. /customstrategy ConversationHandler: before the catch-all callback
     #    handler so that cfg_strat_custom and cs_* callbacks are intercepted
     #    when the conversation is active.
     app.add_handler(custom_strategy_handler)
@@ -165,7 +165,7 @@ def _build_application() -> Application:
     app.add_handler(CommandHandler("reset",     reset_command))
     app.add_handler(CommandHandler("help",      help_command))
 
-    # 5. Catch-all CallbackQueryHandler — must be LAST. Handles all inline
+    # 5. Catch-all CallbackQueryHandler: must be LAST. Handles all inline
     #    button presses that are not owned by a ConversationHandler.
     app.add_handler(CallbackQueryHandler(handle_callback))
 

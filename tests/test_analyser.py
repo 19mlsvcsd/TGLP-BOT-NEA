@@ -4,7 +4,7 @@ tests/test_analyser.py
 Unit tests for core/analyser.py.
 
 Covers the delta analysis engine that compares consecutive market snapshots.
-No network access required — all tests use synthetic PoolData / MarketSnapshot
+No network access required; all tests use synthetic PoolData / MarketSnapshot
 objects.
 
 Run with:
@@ -69,7 +69,7 @@ def _clean_delta(pool_address="0xA", symbol="USDT-WBNB",
 
 
 # ---------------------------------------------------------------------------
-# analyse_cycle — first run (no previous snapshot)
+# analyse_cycle: first run (no previous snapshot)
 # ---------------------------------------------------------------------------
 
 def test_first_run_no_previous():
@@ -84,11 +84,11 @@ def test_first_run_no_previous():
     assert result.first_run is True
     assert result.pools_new == 1   # current pool is "new" on first run
     assert result.pools_dropped == 0
-    print("[PASS] analyse_cycle — first run produces empty pool_deltas")
+    print("[PASS] analyse_cycle: first run produces empty pool_deltas")
 
 
 # ---------------------------------------------------------------------------
-# analyse_cycle — stable cycle (no significant change)
+# analyse_cycle: stable cycle (no significant change)
 # ---------------------------------------------------------------------------
 
 def test_stable_cycle_no_significant_change():
@@ -104,11 +104,11 @@ def test_stable_cycle_no_significant_change():
     delta = result.get_delta("0xA")
     assert delta is not None
     assert abs(delta.apr_change_abs - 0.1) < 0.001
-    print("[PASS] analyse_cycle — 0.1pp APR change is not significant")
+    print("[PASS] analyse_cycle: 0.1pp APR change is not significant")
 
 
 # ---------------------------------------------------------------------------
-# analyse_cycle — significant change (≥0.5pp APR move)
+# analyse_cycle: significant change (>=0.5pp APR move)
 # ---------------------------------------------------------------------------
 
 def test_significant_change_large_apr_move():
@@ -118,11 +118,11 @@ def test_significant_change_large_apr_move():
 
     result = analyse_cycle(curr, prev)
     assert result.significant_change is True
-    print("[PASS] analyse_cycle — 1.0pp APR change sets significant_change=True")
+    print("[PASS] analyse_cycle: 1.0pp APR change sets significant_change=True")
 
 
 # ---------------------------------------------------------------------------
-# analyse_cycle — new and dropped pools
+# analyse_cycle: new and dropped pools
 # ---------------------------------------------------------------------------
 
 def test_new_pool_detected():
@@ -132,7 +132,7 @@ def test_new_pool_detected():
 
     result = analyse_cycle(curr, prev)
     assert result.pools_new == 1
-    print("[PASS] analyse_cycle — new pool counted in pools_new")
+    print("[PASS] analyse_cycle: new pool counted in pools_new")
 
 
 def test_dropped_pool_detected():
@@ -142,7 +142,7 @@ def test_dropped_pool_detected():
 
     result = analyse_cycle(curr, prev)
     assert result.pools_dropped == 1
-    print("[PASS] analyse_cycle — dropped pool counted in pools_dropped")
+    print("[PASS] analyse_cycle: dropped pool counted in pools_dropped")
 
 
 def test_new_pool_has_no_delta():
@@ -152,7 +152,7 @@ def test_new_pool_has_no_delta():
 
     result = analyse_cycle(curr, prev)
     assert result.get_delta("0xNew") is None
-    print("[PASS] analyse_cycle — new pool has no PoolDelta entry")
+    print("[PASS] analyse_cycle: new pool has no PoolDelta entry")
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +168,7 @@ def test_apr_spike_anomaly():
     descriptions = detect_anomalies(delta)
     assert len(descriptions) > 0
     assert any("APR" in d for d in descriptions)
-    print("[PASS] detect_anomalies — 600% relative APR spike flagged")
+    print("[PASS] detect_anomalies: 600% relative APR spike flagged")
 
 
 def test_tvl_drop_anomaly():
@@ -180,21 +180,21 @@ def test_tvl_drop_anomaly():
     descriptions = detect_anomalies(delta)
     assert len(descriptions) > 0
     assert any("TVL" in d for d in descriptions)
-    print("[PASS] detect_anomalies — 40% TVL drop flagged")
+    print("[PASS] detect_anomalies: 40% TVL drop flagged")
 
 
 def test_no_anomaly_normal_change():
     """Normal, moderate changes must return an empty description list."""
     delta = _clean_delta(
         apr_change_abs=1.0,
-        apr_change_pct=0.05,   # 5% relative — well below threshold
+        apr_change_pct=0.05,   # 5% relative, well below threshold
         tvl_change_abs=-10_000.0,
-        tvl_change_pct=-0.02,  # 2% drop — well below threshold
+        tvl_change_pct=-0.02,  # 2% drop, well below threshold
         volume_change_pct=0.05,
     )
     descriptions = detect_anomalies(delta)
     assert descriptions == []
-    print("[PASS] detect_anomalies — moderate changes return empty list")
+    print("[PASS] detect_anomalies: moderate changes return empty list")
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def test_clean_pools_excludes_anomalous():
     clean_addresses = [p.pool for p in clean]
     assert "0xA" in clean_addresses
     assert "0xB" not in clean_addresses
-    print("[PASS] AnalysisResult.clean_pools() — anomalous pool excluded")
+    print("[PASS] AnalysisResult.clean_pools(): anomalous pool excluded")
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +227,7 @@ def test_stability_score_no_history_is_neutral():
     """With no history, stability score must be 0.5 (neutral)."""
     score = get_pool_stability_score("0xUnknown", delta_history=[])
     assert score == 0.5
-    print("[PASS] get_pool_stability_score — no history returns 0.5")
+    print("[PASS] get_pool_stability_score: no history returns 0.5")
 
 
 def test_stability_score_stable_pool_high():
@@ -239,7 +239,7 @@ def test_stability_score_stable_pool_high():
     )
     score = get_pool_stability_score("0xStable", delta_history=[delta])
     assert score > 0.5
-    print(f"[PASS] get_pool_stability_score — stable pool scores {score:.3f} > 0.5")
+    print(f"[PASS] get_pool_stability_score: stable pool scores {score:.3f} > 0.5")
 
 
 def test_stability_score_volatile_pool_low():
@@ -251,7 +251,7 @@ def test_stability_score_volatile_pool_low():
     )
     score = get_pool_stability_score("0xVol", delta_history=[delta])
     assert score < 0.5
-    print(f"[PASS] get_pool_stability_score — volatile pool scores {score:.3f} < 0.5")
+    print(f"[PASS] get_pool_stability_score: volatile pool scores {score:.3f} < 0.5")
 
 
 def test_stability_score_address_not_in_history():
@@ -263,11 +263,11 @@ def test_stability_score_address_not_in_history():
     )
     score = get_pool_stability_score("0xTarget", delta_history=[delta])
     assert score == 0.5
-    print("[PASS] get_pool_stability_score — address absent from history returns 0.5")
+    print("[PASS] get_pool_stability_score: address absent from history returns 0.5")
 
 
 # ---------------------------------------------------------------------------
-# analyse_cycle — anomalous pool tracking
+# analyse_cycle: anomalous pool tracking
 # ---------------------------------------------------------------------------
 
 def test_anomalous_addresses_collected():
@@ -277,12 +277,12 @@ def test_anomalous_addresses_collected():
 
     result = analyse_cycle(curr, prev)
     assert "0xSpike" in result.anomalous_addresses
-    print("[PASS] analyse_cycle — anomalous pool address recorded in result")
+    print("[PASS] analyse_cycle: anomalous pool address recorded in result")
 
 
 def test_anomalous_pool_does_not_set_significant_change():
     """
-    Anomalous pools must not set significant_change=True — the significance
+    Anomalous pools must not set significant_change=True; the significance
     flag is reserved for clean (non-anomalous) pool changes only.
     """
     prev = _snapshot([_pool("0xSpike", apr=5.0)])
@@ -291,7 +291,7 @@ def test_anomalous_pool_does_not_set_significant_change():
     result = analyse_cycle(curr, prev)
     # The pool is anomalous, so the large APR move must not mark significant.
     assert result.significant_change is False
-    print("[PASS] analyse_cycle — anomalous pool APR change does not set significant_change")
+    print("[PASS] analyse_cycle: anomalous pool APR change does not set significant_change")
 
 
 # ===========================================================================

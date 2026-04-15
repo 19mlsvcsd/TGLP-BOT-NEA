@@ -63,7 +63,7 @@ def test_first_run():
     assert result.pools_dropped == 0
     assert result.pools_compared == 0
 
-    print("[PASS] analyse_cycle() — first run")
+    print("[PASS] analyse_cycle(): first run")
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ def test_stable_cycle():
     assert delta_a.tvl_change_abs == 1_000.0
     assert not delta_a.is_anomalous
 
-    print("[PASS] analyse_cycle() — stable cycle, no significant change")
+    print("[PASS] analyse_cycle(): stable cycle, no significant change")
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ def test_significant_change():
     assert abs(delta.apr_change_pct - 0.2) < 1e-9   # 20% relative increase
     assert not delta.is_anomalous
 
-    print("[PASS] analyse_cycle() — significant change detected")
+    print("[PASS] analyse_cycle(): significant change detected")
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def test_new_and_dropped_pools():
     assert result.pools_new == 1         # 0xNEW is new
     assert result.pools_dropped == 1     # 0xOLD was dropped
 
-    print("[PASS] analyse_cycle() — new and dropped pools counted correctly")
+    print("[PASS] analyse_cycle(): new and dropped pools counted correctly")
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +345,7 @@ def test_live_two_cycle():
     snap1 = get_market_snapshot()
 
     if not snap1.pools:
-        print("[SKIP] test_live_two_cycle() — no pools from API")
+        print("[SKIP] test_live_two_cycle(): no pools from API")
         return
 
     # Simulate a second snapshot with tiny APR nudge on all pools
@@ -353,7 +353,7 @@ def test_live_two_cycle():
     snap2_pools = []
     for p in snap1.pools:
         p2 = copy.copy(p)
-        p2.apr = p.apr + 0.05       # tiny nudge — below significance threshold
+        p2.apr = p.apr + 0.05       # tiny nudge, below significance threshold
         p2.timestamp = time.time()
         snap2_pools.append(p2)
 
@@ -365,7 +365,7 @@ def test_live_two_cycle():
     assert result.first_run is False
     assert result.pools_compared == len(snap1.pools)
     # A 0.05pp nudge is below significance threshold on normal-APR pools.
-    # Near-zero APR pools may trigger the relative-spike check — that is
+    # Near-zero APR pools may trigger the relative-spike check; that is
     # correct behaviour (a +0.05pp nudge on a 0.001% APR pool IS a massive
     # relative spike). The important thing is the analyser ran without errors.
     # We only assert the structural invariants, not the anomaly count.
@@ -375,7 +375,7 @@ def test_live_two_cycle():
     # for any pool that isn't anomalous.
     assert result.significant_change is False
 
-    print(f"[PASS] test_live_two_cycle() — {result.pools_compared} pools compared, "
+    print(f"[PASS] test_live_two_cycle(): {result.pools_compared} pools compared, "
           f"{len(result.anomalies)} anomalies (some expected on near-zero APR pools), "
           f"significant={result.significant_change}")
 

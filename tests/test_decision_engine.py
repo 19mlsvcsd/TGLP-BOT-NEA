@@ -64,7 +64,7 @@ def _clean_analysis():
 # ---------------------------------------------------------------------------
 
 def test_filter_removes_wrong_pair_type():
-    """Conservative strategy only allows stable-stable — other types filtered out."""
+    """Conservative strategy only allows stable-stable; other types are filtered out."""
     pools = [
         _pool("0xSS",  pair_type="stable-stable",   tvl=2_000_000),
         _pool("0xSL",  pair_type="stable-largecap",  tvl=2_000_000),
@@ -75,12 +75,12 @@ def test_filter_removes_wrong_pair_type():
     assert "0xSS" in addresses
     assert "0xSL" not in addresses
     assert "0xLL" not in addresses
-    print("[PASS] filter_pools_by_strategy — Conservative only returns stable-stable")
+    print("[PASS] filter_pools_by_strategy: Conservative only returns stable-stable")
 
 
 def test_filter_removes_low_tvl():
     """Pools below the strategy's min_tvl_usd floor must be removed."""
-    # BALANCED_GROWTH has a min TVL — use a pool clearly below it.
+    # BALANCED_GROWTH has a min TVL; use a pool clearly below it.
     pools = [
         _pool("0xHigh", tvl=5_000_000, pair_type="stable-largecap"),
         _pool("0xLow",  tvl=1_000,     pair_type="stable-largecap"),
@@ -89,7 +89,7 @@ def test_filter_removes_low_tvl():
     addresses = [p.pool for p in filtered]
     assert "0xHigh" in addresses
     assert "0xLow" not in addresses
-    print("[PASS] filter_pools_by_strategy — low-TVL pool filtered out")
+    print("[PASS] filter_pools_by_strategy: low-TVL pool filtered out")
 
 
 def test_filter_removes_anomalous_pools():
@@ -109,7 +109,7 @@ def test_filter_removes_anomalous_pools():
     addresses = [p.pool for p in filtered]
     assert "0xClean" in addresses
     assert "0xAnomal" not in addresses
-    print("[PASS] filter_pools_by_strategy — anomalous pool excluded")
+    print("[PASS] filter_pools_by_strategy: anomalous pool excluded")
 
 
 def test_filter_with_no_analysis_result():
@@ -117,13 +117,13 @@ def test_filter_with_no_analysis_result():
     pools = [_pool("0xA", tvl=5_000_000, pair_type="stable-largecap")]
     filtered = filter_pools_by_strategy(pools, BALANCED_GROWTH, None)
     assert len(filtered) == 1
-    print("[PASS] filter_pools_by_strategy — analysis_result=None works correctly")
+    print("[PASS] filter_pools_by_strategy: analysis_result=None works correctly")
 
 
 def test_filter_empty_pool_list():
     filtered = filter_pools_by_strategy([], BALANCED_GROWTH, None)
     assert filtered == []
-    print("[PASS] filter_pools_by_strategy — empty input returns empty list")
+    print("[PASS] filter_pools_by_strategy: empty input returns empty list")
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ def test_score_single_pool_all_half():
     # With a single pool, min == max for every metric → normalise to 0.5.
     assert sp.norm_apr == 0.5
     assert sp.norm_tvl == 0.5
-    print("[PASS] score_pools — single pool gets 0.5 on all component scores")
+    print("[PASS] score_pools: single pool gets 0.5 on all component scores")
 
 
 def test_score_ranking_order():
@@ -151,13 +151,13 @@ def test_score_ranking_order():
     scored = score_pools(pools)
     assert scored[0].pool.pool == "0xHigh"
     assert scored[1].pool.pool == "0xLow"
-    print("[PASS] score_pools — higher APR pool ranks first")
+    print("[PASS] score_pools: higher APR pool ranks first")
 
 
 def test_score_empty_input():
     scored = score_pools([])
     assert scored == []
-    print("[PASS] score_pools — empty input returns empty list")
+    print("[PASS] score_pools: empty input returns empty list")
 
 
 def test_score_composite_between_0_and_1():
@@ -171,7 +171,7 @@ def test_score_composite_between_0_and_1():
         assert 0.0 <= sp.score <= 1.0, (
             f"Score {sp.score} out of range for {sp.pool.pool}"
         )
-    print("[PASS] score_pools — all composite scores in [0, 1]")
+    print("[PASS] score_pools: all composite scores in [0, 1]")
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ def test_decision_allocate_when_no_position():
     )
     assert result.action == Decision.ALLOCATE
     assert result.target_pool is not None
-    print("[PASS] make_decision — ALLOCATE when no position exists")
+    print("[PASS] make_decision: ALLOCATE when no position exists")
 
 
 def test_decision_no_action_when_no_pools():
@@ -209,7 +209,7 @@ def test_decision_no_action_when_no_pools():
         pools_filtered_count=0,
     )
     assert result.action == Decision.NO_ACTION
-    print("[PASS] make_decision — NO_ACTION when no pools available")
+    print("[PASS] make_decision: NO_ACTION when no pools available")
 
 
 def test_decision_compound_when_fees_available():
@@ -229,7 +229,7 @@ def test_decision_compound_when_fees_available():
         pools_filtered_count=0,
     )
     assert result.action == Decision.COMPOUND
-    print("[PASS] make_decision — COMPOUND when fees_available=True and compound_enabled")
+    print("[PASS] make_decision: COMPOUND when fees_available=True and compound_enabled")
 
 
 def test_decision_no_action_when_stable():
@@ -252,9 +252,9 @@ def test_decision_no_action_when_stable():
         fees_available=False,
         pools_filtered_count=0,
     )
-    # The current pool is top — no rebalance needed.
+    # The current pool is top, so no rebalance needed.
     assert result.action in (Decision.NO_ACTION, Decision.REBALANCE)
-    print(f"[PASS] make_decision — stable position: {result.action.value}")
+    print(f"[PASS] make_decision: stable position: {result.action.value}")
 
 
 def test_decision_rebalance_to_better_pool():
@@ -278,7 +278,7 @@ def test_decision_rebalance_to_better_pool():
     )
     assert result.action == Decision.REBALANCE
     assert result.target_pool.pool == "0xBetter"
-    print("[PASS] make_decision — REBALANCE to clearly superior pool")
+    print("[PASS] make_decision: REBALANCE to clearly superior pool")
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +301,7 @@ def test_format_decision_summary_all_actions():
         assert isinstance(text, str) and len(text) > 0, (
             f"format_decision_summary returned empty for {action}"
         )
-    print("[PASS] format_decision_summary — all four actions produce non-empty strings")
+    print("[PASS] format_decision_summary: all four actions produce non-empty strings")
 
 
 # ===========================================================================

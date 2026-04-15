@@ -103,7 +103,7 @@ def get_connection(db_path: str = DB_FILENAME) -> sqlite3.Connection:
     """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # rows accessible as dicts: row["column"]
-    # WAL mode allows reads while a write is in progress — important for the
+    # WAL mode allows reads while a write is in progress, which is important for the
     # scheduler running cycles while the bot handles user commands concurrently.
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
@@ -113,7 +113,7 @@ def initialise_database(db_path: str = DB_FILENAME) -> None:
     """
     Create all tables if they do not already exist.
 
-    Safe to call on every startup — uses CREATE TABLE IF NOT EXISTS, so
+    Safe to call on every startup; uses CREATE TABLE IF NOT EXISTS, so
     existing data is never wiped. Should be called once at application start
     before any other database operations.
 
@@ -129,7 +129,7 @@ def initialise_database(db_path: str = DB_FILENAME) -> None:
         conn.close()
         logger.info("Database initialised at %s", db_path)
     except sqlite3.Error as e:
-        # This is a critical startup failure — re-raise so main.py can handle it.
+        # This is a critical startup failure; re-raise so main.py can handle it.
         logger.critical("Failed to initialise database: %s", e)
         raise
 
@@ -167,7 +167,7 @@ def insert_log(
             )
         conn.close()
     except sqlite3.Error as e:
-        # Log to Python logger only — avoid infinite recursion.
+        # Log to Python logger only, to avoid infinite recursion.
         logger.error("Failed to write log to database: %s", e)
 
 
@@ -396,7 +396,7 @@ def get_all_trades_for_user(
     db_path: str = DB_FILENAME,
 ) -> List[Dict[str, Any]]:
     """
-    Retrieve every trade for a user — used by /export.
+    Retrieve every trade for a user, used by /export.
 
     Args:
         user_chat_id: Telegram chat ID.

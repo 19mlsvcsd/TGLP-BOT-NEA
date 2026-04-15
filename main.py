@@ -10,7 +10,7 @@ Responsibilities:
 4. Print a startup banner so the operator knows the bot has started
 5. Hand off to bot/app.py to start the Telegram polling loop
 
-This file is intentionally thin — all real logic lives in the modules it calls.
+This file is intentionally thin; all real logic lives in the modules it calls.
 """
 
 import logging
@@ -52,7 +52,7 @@ def print_banner() -> None:
     """
     banner = """
 ╔══════════════════════════════════════════════════════╗
-║           TGLP Bot — Telegram LP Manager             ║
+║         TGLP Bot: Telegram LP Manager                ║
 ║         BSC Testnet / PancakeSwap V3                 ║
 ║   OCR A Level Computer Science NEA Project           ║
 ╚══════════════════════════════════════════════════════╝
@@ -78,7 +78,7 @@ def check_env() -> None:
 
     rpc = os.getenv("BSC_TESTNET_RPC_URL")
     if not rpc:
-        # Not fatal — settings.py has a default RPC URL.
+        # Not fatal, settings.py has a default RPC URL.
         print(
             "[WARNING] BSC_TESTNET_RPC_URL is not set in .env. "
             "Using the default public endpoint from config/settings.py."
@@ -98,14 +98,14 @@ def run_bot() -> None:
 
 def main() -> None:
     """
-    Application entry point — called when main.py is run directly.
+    Application entry point, called when main.py is run directly.
 
     Execution order:
-    1. configure_logging()  — set up log output
-    2. print_banner()       — show startup banner
-    3. check_env()          — fail fast if config is missing
-    4. initialise_database()— create DB tables if not present
-    5. run_bot()            — start Telegram polling (blocks until Ctrl+C)
+    1. configure_logging(): set up log output
+    2. print_banner(): show startup banner
+    3. check_env(): fail fast if config is missing
+    4. initialise_database(): create DB tables if not present
+    5. run_bot(): start Telegram polling (blocks until Ctrl+C)
     """
     configure_logging()
     print_banner()

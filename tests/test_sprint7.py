@@ -303,7 +303,7 @@ def test_collect_fees_no_funds():
 
     w3 = _get_w3()
     # Use a dummy private key whose address has zero BNB (testnet fresh account).
-    # Hardhat test key #5 — no testnet BNB.
+    # Hardhat test key #5, no testnet BNB.
     dummy_key = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
     from helpers.blockchain import get_wallet_address
     wallet = get_wallet_address(dummy_key)

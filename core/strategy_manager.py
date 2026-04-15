@@ -5,16 +5,16 @@ Per-user session state and strategy profile management.
 
 This module owns two key concepts:
 
-1. **StrategyProfile** — a named bundle of trading parameters (pair types,
+1. **StrategyProfile**: a named bundle of trading parameters (pair types,
    TVL floor, slippage ceiling, rebalance threshold, compound interval).
    The four built-in profiles are defined in config/settings.py; this module
    re-exports the type so the rest of the codebase has a single import path.
 
-2. **UserSession** — all runtime state for one Telegram user: their wallet
+2. **UserSession**: all runtime state for one Telegram user, including their wallet
    address, private key (in-memory only), chosen strategy, position details,
    P&L accumulators, and scheduler handle.
 
-3. **SessionManager** — a process-level dictionary of chat_id → UserSession.
+3. **SessionManager**: a process-level dictionary mapping chat_id to UserSession.
    The module-level `session_manager` singleton is the single source of truth
    for who is currently onboarded. All modules that need session data import
    it from here.
@@ -48,14 +48,14 @@ class UserSession:
     All runtime state for a single onboarded Telegram user.
 
     Created during the /start onboarding flow and stored in SessionManager.
-    Never persisted to disk — if the process restarts, users must re-run
+    Never persisted to disk; if the process restarts, users must re-run
     /start. (This is intentional: the private key must not be stored on disk.)
 
     Attributes:
         chat_id:               Telegram chat ID (integer). Used as the primary
                                key in SessionManager and in all DB records.
         wallet_address:        Public checksummed address derived from the key.
-        private_key:           Raw 64-char hex key. RAM ONLY — never log this.
+        private_key:           Raw 64-char hex key. RAM ONLY, never log this.
         active_strategy:       The StrategyConfig currently governing decisions.
         compound_enabled:      Whether auto-compounding is turned on. May differ
                                from active_strategy.compound_interval: a user can
@@ -84,12 +84,12 @@ class UserSession:
     """
     chat_id: int
     wallet_address: str
-    private_key: str                          # RAM ONLY — never log
+    private_key: str                          # RAM ONLY, never log
     active_strategy: StrategyProfile
     compound_enabled: bool
     auto_execute: bool
 
-    # Position state — populated by executor.py
+    # Position state: populated by executor.py
     current_position: Optional[Dict[str, Any]] = None
     position_token_id: Optional[int] = None
 
@@ -97,21 +97,21 @@ class UserSession:
     paused: bool = False
     safety_locked: bool = False
 
-    # Analysis data — updated each cycle
+    # Analysis data: updated each cycle
     previous_snapshot: Optional[Dict[str, Any]] = None
 
-    # Watchlist in-memory cache — synced with SQLite on load/add/remove
+    # Watchlist in-memory cache, synced with SQLite on load/add/remove
     watchlist: List[Dict[str, Any]] = field(default_factory=list)
 
-    # Lifetime performance metrics — updated by portfolio.py
+    # Lifetime performance metrics: updated by portfolio.py
     rebalance_count: int = 0
     total_gas_spent_bnb: float = 0.0
     entry_value_usd: float = 0.0
 
-    # Scheduler handle — set by core/scheduler.py (Sprint 10)
+    # Scheduler handle: set by core/scheduler.py (Sprint 10)
     scheduler_job: Optional[Any] = None
 
-    # BNB price from the previous cycle — used by price-change alerts (Sprint 13)
+    # BNB price from the previous cycle, used by price-change alerts (Sprint 13)
     previous_bnb_price: Optional[float] = None
 
     def has_position(self) -> bool:
@@ -151,7 +151,7 @@ class SessionManager:
     Process-level registry mapping Telegram chat IDs to UserSession objects.
 
     This is a thin wrapper around a plain dict. It provides named methods
-    so that callers read clearly — `session_manager.get(chat_id)` is more
+    so that callers read clearly; `session_manager.get(chat_id)` is more
     self-documenting than `_sessions[chat_id]`.
 
     Thread safety: python-telegram-bot v21 runs handlers in a single asyncio
@@ -193,7 +193,7 @@ class SessionManager:
         Remove and discard a session (called by /reset).
 
         The private key stored in the session is discarded along with the
-        object — Python's garbage collector will free it from RAM.
+        object; Python's garbage collector will free it from RAM.
 
         Args:
             chat_id: Telegram chat ID.

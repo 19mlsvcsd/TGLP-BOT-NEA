@@ -128,7 +128,7 @@ def _clear_ob(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 0 — /start entry point
+# Step 0: /start entry point
 # ---------------------------------------------------------------------------
 
 async def start_command(
@@ -167,7 +167,7 @@ async def start_command(
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🔑 *Please send your BSC Testnet wallet private key\\.* \n\n"
         "_Your key will be deleted from the chat immediately after I read it\\. "
-        "It is never stored on disk — only in memory while the bot runs\\._\n\n"
+        "It is never stored on disk, only in memory while the bot runs\\._\n\n"
         "⚠️ *Only use a testnet wallet with test funds\\.* Never use a mainnet wallet here\\."
     )
     await update.message.reply_text(welcome, parse_mode=ParseMode.MARKDOWN_V2)
@@ -175,7 +175,7 @@ async def start_command(
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Receive and validate private key
+# Step 1: Receive and validate private key
 # ---------------------------------------------------------------------------
 
 async def receive_key(
@@ -185,7 +185,7 @@ async def receive_key(
     Receive the private key message, delete it immediately, validate it,
     and proceed to strategy selection.
 
-    The message is deleted BEFORE any further processing — even if the key
+    The message is deleted BEFORE any further processing, even if the key
     turns out to be invalid. This ensures no key ever stays visible in chat.
 
     Returns:
@@ -202,7 +202,7 @@ async def receive_key(
         )
     except Exception as e:
         # Deletion can fail if the bot lacks delete-messages permission in
-        # the chat. Log the failure but continue — the key is still validated.
+        # the chat. Log the failure but continue; the key is still validated.
         logger.warning("Could not delete private key message: %s", e)
         await message.reply_text(
             "⚠️ I couldn't delete your key message\\. Please delete it manually "
@@ -250,7 +250,7 @@ async def receive_key(
     balance_line = (
         f"Balance: `{escape_md(format_bnb(bnb_balance))}`\n"
         if bnb_balance is not None
-        else "Balance: _could not read — check your RPC connection_\n"
+        else "Balance: _could not read, check your RPC connection_\n"
     )
     low_balance_warning = ""
     if bnb_balance is not None and bnb_balance < 0.01:
@@ -264,10 +264,10 @@ async def receive_key(
         f"{balance_line}"
         f"{low_balance_warning}\n"
         f"*Now choose a strategy:*\n\n"
-        f"🛡 *Conservative Yield* — stablecoin pairs, low risk, auto\\-compound\n"
-        f"⚖️ *Balanced Growth* — stablecoin \\+ large\\-cap pairs, moderate risk\n"
-        f"🚀 *Aggressive Alpha* — large\\-cap pairs, highest APR potential\n"
-        f"🔧 *Custom* — set your own parameters",
+        f"🛡 *Conservative Yield*: stablecoin pairs, low risk, auto\\-compound\n"
+        f"⚖️ *Balanced Growth*: stablecoin \\+ large\\-cap pairs, moderate risk\n"
+        f"🚀 *Aggressive Alpha*: large\\-cap pairs, highest APR potential\n"
+        f"🔧 *Custom*: set your own parameters",
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=strategy_selection_keyboard(),
     )
@@ -275,7 +275,7 @@ async def receive_key(
 
 
 # ---------------------------------------------------------------------------
-# Step 2 — Receive strategy choice
+# Step 2: Receive strategy choice
 # ---------------------------------------------------------------------------
 
 async def receive_strategy(
@@ -306,7 +306,7 @@ async def receive_strategy(
         )
         return AWAITING_CUSTOM_PAIRS
 
-    # Preset strategy chosen — store it and move to compound preference.
+    # Preset strategy chosen, store it and move to compound preference.
     strategy = STRATEGY_PROFILES[choice]
     ob["strategy_obj"] = strategy
 
@@ -343,7 +343,7 @@ async def receive_custom_pairs(
     _ob(context)["custom_pairs"] = pair_map.get(choice, ["stable-stable"])
 
     await query.edit_message_text(
-        "*🔧 Custom Strategy — Step 2 of 4*\n\n"
+        "*🔧 Custom Strategy, Step 2 of 4*\n\n"
         "What is the *minimum TVL* \\(Total Value Locked\\) a pool must have for me "
         "to consider it?\n\n"
         "Enter a USD amount\\. Examples: `500000` \\($500K\\), `200000` \\($200K\\)\n\n"
@@ -369,7 +369,7 @@ async def receive_custom_tvl(
     _ob(context)["custom_tvl"] = float(text)
 
     await update.message.reply_text(
-        "*🔧 Custom Strategy — Step 3 of 4*\n\n"
+        "*🔧 Custom Strategy, Step 3 of 4*\n\n"
         "What is the *maximum slippage* you'll accept on trades?\n\n"
         "Enter a percentage\\. Examples: `0.5` \\(0\\.5%\\), `1.0` \\(1%\\)\n\n"
         "_Allowed range: 0\\.1% – 5\\.0%\\. Higher slippage risks front\\-running\\._",
@@ -394,7 +394,7 @@ async def receive_custom_slippage(
     _ob(context)["custom_slippage"] = float(text) / 100.0  # Store as fraction
 
     await update.message.reply_text(
-        "*🔧 Custom Strategy — Step 4 of 4*\n\n"
+        "*🔧 Custom Strategy, Step 4 of 4*\n\n"
         "What *rebalance threshold* should trigger a pool switch?\n\n"
         "Enter a percentage\\. Example: `15` means I'll rebalance if a better "
         "pool scores 15% higher than your current one\\.\n\n"
@@ -605,7 +605,7 @@ async def receive_final_confirm(
         logger.info("Scheduler job registered for chat_id %d.", session.chat_id)
     else:
         logger.warning(
-            "w3 or notify_func not available in bot_data — "
+            "w3 or notify_func not available in bot_data; "
             "scheduler job NOT registered for chat_id %d.",
             session.chat_id,
         )
@@ -631,7 +631,7 @@ async def cancel_onboarding(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     """
-    Handle /cancel during onboarding — wipes scratch-pad and ends conversation.
+    Handle /cancel during onboarding: wipes the scratch-pad and ends the conversation.
     """
     _clear_ob(context)
     await update.message.reply_text(

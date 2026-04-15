@@ -78,7 +78,7 @@ def test_pool_validation():
 
     # Missing symbol field is allowed (gets default 'Unknown' in build)
     v2, _ = _is_pool_valid({**good, "symbol": None})
-    # symbol is not in required list — should still pass
+    # symbol is not in required list, should still pass
     assert v2 or True   # permissive: symbol is not required by _is_pool_valid
 
     print("[PASS] _is_pool_valid()")
@@ -99,7 +99,7 @@ def test_build_pool_snapshot():
             "apyBase": 8.0,
             "apyReward": 2.0,
             "volumeUsd1d": 500_000,
-            "feeTier": 0.0001,   # 0.01% — DeFiLlama fractional format
+            "feeTier": 0.0001,   # 0.01%, DeFiLlama fractional format
         },
         {
             "pool": "0xPool2222222222222222222222222222222222222",
@@ -111,7 +111,7 @@ def test_build_pool_snapshot():
             "feeTier": 0.0025,
         },
         {
-            # Should be rejected — zero TVL
+            # Should be rejected: zero TVL
             "pool": "0xPool3333333333333333333333333333333333333",
             "symbol": "ETH-BNB",
             "tvlUsd": 0,
@@ -121,7 +121,7 @@ def test_build_pool_snapshot():
             "feeTier": 0.003,
         },
         {
-            # Should be rejected — negative APR
+            # Should be rejected: negative APR
             "pool": "0xPool4444444444444444444444444444444444444",
             "symbol": "BTC-ETH",
             "tvlUsd": 500_000,
@@ -138,7 +138,7 @@ def test_build_pool_snapshot():
     # 2 valid, 2 rejected
     assert len(pools) == 2, f"Expected 2, got {len(pools)}"
 
-    # Sorted by total APR descending — BNB-USDT (20% total) before USDT-USDC (10%)
+    # Sorted by total APR descending: BNB-USDT (20% total) before USDT-USDC (10%)
     assert pools[0].symbol == "BNB-USDT"
     assert pools[0].total_apr() == 20.0
     assert pools[1].symbol == "USDT-USDC"
@@ -186,7 +186,7 @@ def test_market_snapshot():
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Live API calls — DeFiLlama
+# Test 5: Live API calls: DeFiLlama
 # ---------------------------------------------------------------------------
 
 def test_fetch_defi_llama_pools():
@@ -196,7 +196,7 @@ def test_fetch_defi_llama_pools():
 
     # Should return a non-empty list (network-dependent; skip gracefully on timeout)
     if not pools:
-        print("[SKIP] fetch_defi_llama_pools() — no data returned (API may be slow)")
+        print("[SKIP] fetch_defi_llama_pools(): no data returned (API may be slow)")
         return
 
     # Every returned pool should have the required keys
@@ -204,7 +204,7 @@ def test_fetch_defi_llama_pools():
         assert "pool" in pool, f"Missing 'pool' key in: {pool}"
         assert "symbol" in pool
 
-    print(f"[PASS] fetch_defi_llama_pools() — {len(pools)} PancakeSwap V3/BSC pools")
+    print(f"[PASS] fetch_defi_llama_pools(): {len(pools)} PancakeSwap V3/BSC pools")
 
     # Print top 10 by APR for visual confirmation
     sorted_pools = sorted(
@@ -212,7 +212,7 @@ def test_fetch_defi_llama_pools():
         key=lambda p: (p.get("apyBase") or 0) + (p.get("apyReward") or 0),
         reverse=True,
     )
-    print("\nTop 10 pools by APR (mainnet data — used for scoring only):")
+    print("\nTop 10 pools by APR (mainnet data, used for scoring only):")
     for i, p in enumerate(sorted_pools[:10], 1):
         apr = (p.get("apyBase") or 0) + (p.get("apyReward") or 0)
         tvl = p.get("tvlUsd") or 0
@@ -221,7 +221,7 @@ def test_fetch_defi_llama_pools():
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Live API calls — Binance prices
+# Test 6: Live API calls: Binance prices
 # ---------------------------------------------------------------------------
 
 def test_fetch_token_prices():
@@ -235,10 +235,10 @@ def test_fetch_token_prices():
 
     # BNB price should be non-zero if API is reachable
     if prices.get("BNB", 0) > 0:
-        print(f"[PASS] fetch_token_prices() — BNB: ${prices['BNB']:.2f}, "
+        print(f"[PASS] fetch_token_prices(): BNB: ${prices['BNB']:.2f}, "
               f"ETH: ${prices.get('ETH', 0):.2f}, BTC: ${prices.get('BTC', 0):.2f}")
     else:
-        print("[SKIP] fetch_token_prices() — BNB price unavailable (API may be slow)")
+        print("[SKIP] fetch_token_prices(): BNB price unavailable (API may be slow)")
 
 
 # ---------------------------------------------------------------------------
@@ -266,15 +266,15 @@ def test_get_market_snapshot():
         for p in snap.pools:
             assert p.pair_type in valid_types
 
-        print(f"[PASS] get_market_snapshot() — {snap.pool_count} pools, "
+        print(f"[PASS] get_market_snapshot(): {snap.pool_count} pools, "
               f"BNB=${snap.prices.get('BNB', 0):.2f}")
-        print(f"       Top pool: {snap.pools[0].symbol} — "
+        print(f"       Top pool: {snap.pools[0].symbol}, "
               f"{snap.pools[0].total_apr():.2f}% APR, "
               f"TVL ${snap.pools[0].tvl_usd:,.0f}")
     else:
-        print("[SKIP] get_market_snapshot() — no pools (DeFiLlama may be slow)")
+        print("[SKIP] get_market_snapshot(): no pools (DeFiLlama may be slow)")
 
-    # Test cache — second call should be instant
+    # Test cache: second call should be instant
     t0 = time.monotonic()
     snap2 = get_market_snapshot()
     t1 = time.monotonic()

@@ -4,20 +4,20 @@ core/executor.py
 On-chain execution layer for TGLP Bot.
 
 This module translates DecisionResults into signed blockchain transactions.
-It is the ONLY module that broadcasts transactions to the network — the
+It is the ONLY module that broadcasts transactions to the network; the
 decision engine (Sprint 6) and dispatcher (Sprint 10) are purely analytical.
 
 Execution contract:
     Every write function in this module must:
     1. Check preconditions (balance, position existence).
-    2. Call simulate_transaction() before sign_and_send() — no exceptions.
+    2. Call simulate_transaction() before sign_and_send(), no exceptions.
     3. Return a structured ExecutionResult so the dispatcher can log and
        report the outcome regardless of success or failure.
 
 The three high-level entry points the dispatcher calls are:
-    execute_allocate()  — enter a new LP position
-    execute_rebalance() — exit current position, enter new pool
-    execute_compound()  — collect fees and reinvest into same position
+    execute_allocate():  enter a new LP position
+    execute_rebalance(): exit current position, enter new pool
+    execute_compound():  collect fees and reinvest into same position
 
 Design: all state is passed in as arguments. This module holds no mutable
 state. It communicates with the blockchain via helpers/blockchain.py and
@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 # Used to identify native-BNB pools so the executor can attach value to the tx.
 WBNB_ADDRESS: str = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
 
-# Maximum uint128 value — used as amount0Max/amount1Max in collect() to
+# Maximum uint128 value, used as amount0Max/amount1Max in collect() to
 # withdraw all available fees in one call.
 _MAX_UINT128: int = 2 ** 128 - 1
 
@@ -432,9 +432,9 @@ def remove_liquidity(
 
     Two-step sequence:
     1. decreaseLiquidity(liquidity=full_amount, amount0Min=0, amount1Min=0)
-       — converts LP shares back to token0 + token1, held in the position.
+       converts LP shares back to token0 + token1, held in the position.
     2. collect(amount0Max=MAX, amount1Max=MAX)
-       — withdraws those tokens (plus any pre-existing uncollected fees)
+       withdraws those tokens (plus any pre-existing uncollected fees)
        to the wallet.
 
     If liquidity is already 0 (position was previously drained), step 1 is
@@ -446,7 +446,7 @@ def remove_liquidity(
         wallet_address: Owner's address.
         private_key:    Owner's private key.
         slippage:       Not applied to minima here (set to 0 for safety on
-                        full withdrawals — partial withdrawals can add slippage).
+                        full withdrawals; partial withdrawals can add slippage).
 
     Returns:
         ExecutionResult combining gas from both transactions.
@@ -465,7 +465,7 @@ def remove_liquidity(
         if position is None:
             return ExecutionResult(
                 success=False, action=action,
-                error=f"Cannot read position {token_id} — may not exist.",
+                error=f"Cannot read position {token_id}; may not exist.",
             )
 
         liquidity = position["liquidity"]
@@ -587,7 +587,7 @@ def swap_exact_input_single(
       token_in   = WBNB_ADDRESS
       bnb_value  = amount_in_wei  (native BNB attached to the transaction)
 
-    The Router wraps the BNB to WBNB internally — no pre-wrapping needed.
+    The Router wraps the BNB to WBNB internally, no pre-wrapping needed.
 
     amountOutMinimum is set to 0 (accept any output) because we are on a
     testnet with shallow liquidity. On mainnet, a price oracle would be used
@@ -601,7 +601,7 @@ def swap_exact_input_single(
         amount_in_wei: Exact input amount in the token's smallest unit.
         recipient:     Wallet that will receive the output tokens.
         private_key:   Signing key.
-        slippage:      Accepted for interface consistency — not applied here
+        slippage:      Accepted for interface consistency, not applied here
                        (amountOutMinimum = 0 in testnet mode).
         bnb_value:     Native BNB in wei to attach (only for BNB → token swaps).
 
@@ -688,7 +688,7 @@ def add_liquidity(
     - Computing a valid tick range (both must be multiples of tickSpacing).
 
     Any token amounts not used by the PositionManager (due to ratio mismatch)
-    remain in the wallet — the contract never takes more than it needs.
+    remain in the wallet; the contract never takes more than it needs.
 
     Args:
         w3:                   Connected Web3 instance.
@@ -780,7 +780,7 @@ def execute_allocate(
     """
     Execute an ALLOCATE action: enter a new LP position using BNB capital.
 
-    Execution plan — pool contains WBNB:
+    Execution plan (pool contains WBNB):
       1. Balance check.
       2. Read on-chain pool data (token0/token1/fee/tickSpacing/currentTick).
       3. Calculate tick range: ±10 × tickSpacing around current tick.
@@ -788,7 +788,7 @@ def execute_allocate(
       5. Approve the non-WBNB token for the PositionManager.
       6. Mint LP position (pass other half as native BNB value).
 
-    Execution plan — pool contains no WBNB:
+    Execution plan (pool contains no WBNB):
       1–3 as above.
       4. Swap all BNB to token0.
       5. Swap half of token0 to token1.
@@ -997,8 +997,8 @@ def execute_rebalance(
     Execute a REBALANCE: exit the current LP position then enter a new pool.
 
     Steps:
-    1. remove_liquidity() — close the existing position (decreaseLiquidity + collect).
-    2. execute_allocate() — enter the new pool with the freed capital.
+    1. remove_liquidity(): close the existing position (decreaseLiquidity + collect).
+    2. execute_allocate(): enter the new pool with the freed capital.
 
     The amount_bnb parameter is a caller-supplied estimate of the capital
     freed from the exit. The dispatcher calculates this from the current
@@ -1070,10 +1070,10 @@ def execute_compound(
     Execute a COMPOUND: collect accrued fees and reinvest into the same position.
 
     Steps:
-    1. collect_fees() — withdraw token0 + token1 fees to the wallet.
+    1. collect_fees(): withdraw token0 + token1 fees to the wallet.
     2. Read current position data (tick range).
     3. Approve collected tokens for the PositionManager.
-    4. increaseLiquidity() — add the fee tokens back into the existing position.
+    4. increaseLiquidity(): add the fee tokens back into the existing position.
 
     This keeps the same NFT token ID and tick range, avoiding the gas cost of
     burning + reminting.
@@ -1125,7 +1125,7 @@ def execute_compound(
             return ExecutionResult(
                 success=True, action=action,
                 tx_hashes=tx_hashes, gas_used=total_gas, gas_cost_bnb=total_cost,
-                error="Fees collected but zero balance — nothing to reinvest.",
+                error="Fees collected but zero balance; nothing to reinvest.",
             )
 
         # ── Step 3: approve tokens for PositionManager ────────────────────

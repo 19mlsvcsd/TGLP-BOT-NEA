@@ -1,11 +1,11 @@
 """
 bot/callbacks.py
 ================
-Inline button callback handlers for TGLP Bot — Sprint 11 fully wired.
+Inline button callback handlers for TGLP Bot (Sprint 11, fully wired).
 
 Handles CallbackQuery updates that originate from inline keyboards outside
 of active ConversationHandlers. The onboarding conversation handles its own
-buttons internally — this module handles everything else:
+buttons internally; this module handles everything else:
 
 - Main menu quick-access buttons (cmd_*)
 - Settings toggles (cfg_*)
@@ -66,7 +66,7 @@ async def handle_callback(
     elif data.startswith("reset_"):
         await _handle_reset(query, update, context)
     elif data in ("page_noop", "alert_noop"):
-        # No-op buttons used as display labels — just dismiss the loading spinner.
+        # No-op buttons used as display labels; just dismiss the loading spinner.
         await query.answer()
     elif data.startswith("export_"):
         await _handle_export(query, update, context)
@@ -272,7 +272,7 @@ async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE
 
         lines = [
             f"🔍 *Pool Explorer*\n"
-            f"Strategy: *{escape_md(session.active_strategy.name)}* — "
+            f"Strategy: *{escape_md(session.active_strategy.name)}*, "
             f"{escape_md(str(len(scored)))} pools matched\n"
         ]
         for i, sp in enumerate(page_pools):
@@ -355,7 +355,7 @@ async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE
         page_pools = scored[page * page_size: (page + 1) * page_size]
 
         lines = [
-            f"🔍 *Pool Explorer* — Page {page + 1}/{total_pages}\n"
+            f"🔍 *Pool Explorer* (Page {page + 1}/{total_pages})\n"
             f"Strategy: *{escape_md(session.active_strategy.name)}*\n"
         ]
         for i, sp in enumerate(page_pools):
@@ -388,9 +388,9 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
     Navigate history pages and handle action-type / date-range filter buttons.
 
     Callback data patterns handled:
-      hist_filter_<key>  — set action-type filter, reset to page 0
-      hist_date_<key>    — set date-range filter, reset to page 0
-      hist_page_<n>      — paginate with current filters intact
+      hist_filter_<key>: set action-type filter, reset to page 0
+      hist_date_<key>: set date-range filter, reset to page 0
+      hist_page_<n>: paginate with current filters intact
     """
     await query.answer()
     data = query.data
@@ -446,7 +446,7 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
     filter_label = (" \\| " + ", ".join(filter_parts)) if filter_parts else ""
 
     header = (
-        f"📜 *Transaction History*{filter_label} — "
+        f"📜 *Transaction History*{filter_label}, "
         f"Page {page + 1}/{total_pages} "
         f"\\({escape_md(str(total))} total\\)\n"
     )
@@ -550,7 +550,7 @@ async def _handle_action_confirm(query, update: Update, context: ContextTypes.DE
 
     Note: confirming re-runs the full cycle rather than caching and replaying
     the specific decision. This means a brief market update between the
-    proposal and the confirmation might change the final action — which is
+    proposal and the confirmation might change the final action, which is
     the correct and safe behaviour for a live trading bot.
     """
     await query.answer()
@@ -643,8 +643,8 @@ async def _handle_export(query, update: Update, context: ContextTypes.DEFAULT_TY
     """
     Handle the export format selection keyboard from /export.
 
-    export_fmt_text — sends the trade history as formatted MarkdownV2 text.
-    export_fmt_csv  — sends the trade history as a downloadable .csv file.
+    export_fmt_text: sends the trade history as formatted MarkdownV2 text.
+    export_fmt_csv: sends the trade history as a downloadable .csv file.
     """
     await query.answer()
     data = query.data

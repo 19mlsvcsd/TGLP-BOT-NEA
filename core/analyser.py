@@ -12,13 +12,13 @@ produces an AnalysisResult that tells the decision engine:
 3. Whether the overall market changed enough to warrant re-scoring.
 
 Why anomaly detection matters:
-    DeFiLlama data is aggregated and can contain occasional bad data points —
+    DeFiLlama data is aggregated and can contain occasional bad data points;
     a pool might show a 200% APR spike for one cycle before correcting. Acting
     on such data could cause unnecessary and costly rebalances. By flagging
     anomalies, we pass clean data to the decision engine and avoid reacting
     to noise.
 
-Design: this module is purely functional — it takes two snapshots and returns
+Design: this module is purely functional; it takes two snapshots and returns
 a result. It holds no state. The dispatcher is responsible for storing the
 previous snapshot in UserSession.previous_snapshot.
 """
@@ -100,7 +100,7 @@ class PoolDelta:
 @dataclass
 class AnalysisResult:
     """
-    Output of one analysis cycle — produced by `analyse_cycle()`.
+    Output of one analysis cycle, produced by `analyse_cycle()`.
 
     Consumed by `core/decision_engine.py` to filter pools and decide action.
 
@@ -113,7 +113,7 @@ class AnalysisResult:
         significant_change: True if any non-anomalous pool's APR shifted by
                            more than _SIGNIFICANCE_APR_CHANGE_PP since the
                            last cycle. Prompts the decision engine to re-score.
-        first_run:         True when there was no previous snapshot — the bot
+        first_run:         True when there was no previous snapshot; the bot
                            has just started. Decision engine will score all
                            pools fresh without comparing to a baseline.
         pools_compared:    Number of pools present in both snapshots.
@@ -141,7 +141,7 @@ class AnalysisResult:
         """
         Filter a list of PoolData objects, removing any flagged as anomalous.
 
-        Convenience method for the decision engine — call this before scoring.
+        Convenience method for the decision engine; call this before scoring.
 
         Args:
             pool_list: List of PoolData objects from a MarketSnapshot.
@@ -168,7 +168,7 @@ def detect_anomalies(delta: PoolDelta) -> List[str]:
         - TVL drop:     relative TVL decrease exceeds ANOMALY_TVL_DROP_THRESHOLD
         Note: price deviation is checked separately using on-chain data when
         available (sqrtPriceX96 comparison). It is omitted here because the
-        PoolDelta currently does not carry raw price values — the APR and TVL
+        PoolDelta currently does not carry raw price values; the APR and TVL
         checks catch most bad-data scenarios.
 
     Args:
@@ -180,7 +180,7 @@ def detect_anomalies(delta: PoolDelta) -> List[str]:
     descriptions: List[str] = []
 
     # APR spike: relative increase above threshold.
-    # Only flag upward spikes — a falling APR is informative, not anomalous.
+    # Only flag upward spikes; a falling APR is informative, not anomalous.
     if delta.apr_change_pct > ANOMALY_APR_SPIKE_THRESHOLD:
         descriptions.append(
             f"APR spike: +{delta.apr_change_pct*100:.1f}% relative increase "
@@ -188,7 +188,7 @@ def detect_anomalies(delta: PoolDelta) -> List[str]:
         )
 
     # TVL drop: relative decrease below threshold.
-    # Only flag downward drops — TVL increasing is not anomalous.
+    # Only flag downward drops; TVL increasing is not anomalous.
     if delta.tvl_change_pct < -ANOMALY_TVL_DROP_THRESHOLD:
         descriptions.append(
             f"TVL drop: {delta.tvl_change_pct*100:.1f}% relative decrease "
@@ -234,7 +234,7 @@ def analyse_cycle(
     # ── Case 1: first run ─────────────────────────────────────────────────
     if previous is None:
         logger.info(
-            "analyse_cycle: first run — %d pools, no previous snapshot.",
+            "analyse_cycle: first run, %d pools, no previous snapshot.",
             len(current.pools),
         )
         return AnalysisResult(
@@ -248,7 +248,7 @@ def analyse_cycle(
             pools_dropped=0,
         )
 
-    # ── Case 2: normal cycle — build address lookup dicts ─────────────────
+    # ── Case 2: normal cycle, build address lookup dicts ──────────────────
     prev_by_addr: Dict[str, PoolData] = {
         p.pool.lower(): p for p in previous.pools
     }
@@ -273,7 +273,7 @@ def analyse_cycle(
         curr_pool = curr_by_addr[addr]
         prev_pool = prev_by_addr[addr]
 
-        # APR delta — absolute (percentage points) and relative (fraction).
+        # APR delta: absolute (percentage points) and relative (fraction).
         apr_prev = prev_pool.total_apr()
         apr_curr = curr_pool.total_apr()
         apr_change_abs = apr_curr - apr_prev
@@ -373,7 +373,7 @@ def get_pool_stability_score(
         4. Clamp to [0.0, 1.0].
 
     A pool with no history (delta_history is empty or has no matching entries)
-    receives a neutral score of 0.5 — neither rewarded nor penalised.
+    receives a neutral score of 0.5, neither rewarded nor penalised.
 
     Args:
         pool_address:  Pool contract address to look up in the history.
@@ -443,7 +443,7 @@ def check_price_deviation(
         return None
 
     # Price is proportional to (sqrtPrice)^2, so price_change_pct uses the
-    # ratio of squares — equivalently the square of the sqrtPrice ratio.
+    # ratio of squares, equivalently the square of the sqrtPrice ratio.
     price_ratio = (sqrt_curr / sqrt_prev) ** 2
     price_change_pct = abs(price_ratio - 1.0)
 

@@ -5,7 +5,7 @@ Watchlist management for TGLP Bot.
 
 This module bridges the in-memory watchlist (session.watchlist) with the
 SQLite watchlist table. Every write is committed to the database immediately
-so that the watchlist survives a restart — unlike private key data which is
+so that the watchlist survives a restart, unlike private key data which is
 deliberately never persisted.
 
 On startup, load_watchlist() must be called once per session to populate
@@ -42,7 +42,7 @@ def load_watchlist(session: Any) -> None:
     SQLite. Call this once per session during onboarding or restart.
 
     Args:
-        session: UserSession — session.watchlist is overwritten in place.
+        session: UserSession, session.watchlist is overwritten in place.
     """
     items = get_active_watchlist(session.chat_id)
     session.watchlist = items
@@ -67,7 +67,7 @@ def add_watch_item(
     rejected and -1 is returned.
 
     Args:
-        session:         UserSession — session.watchlist is updated in place.
+        session:         UserSession, session.watchlist is updated in place.
         item_type:       'pool' or 'token'.
         identifier:      Pool address (for item_type='pool') or token symbol
                          (for item_type='token').
@@ -124,7 +124,7 @@ def remove_watch_item(session: Any, watch_id: int) -> bool:
     user from deleting another user's items.
 
     Args:
-        session:  UserSession — session.watchlist is updated in place.
+        session:  UserSession, session.watchlist is updated in place.
         watch_id: Database row ID of the item to remove.
 
     Returns:
@@ -153,7 +153,7 @@ def get_watch_item(session: Any, watch_id: int) -> Optional[Dict]:
     """
     Look up a single watchlist item by its database ID.
 
-    Searches the in-memory session.watchlist — no database call needed.
+    Searches the in-memory session.watchlist; no database call needed.
 
     Args:
         session:  UserSession.

@@ -53,14 +53,14 @@ def test_check_result_passed_default():
     result = SafetyCheckResult(passed=True, check_name="test")
     assert result.passed is True
     assert result.reason == ""
-    print("[PASS] SafetyCheckResult — passed=True has empty reason")
+    print("[PASS] SafetyCheckResult: passed=True has empty reason")
 
 
 def test_check_result_failed_has_reason():
     result = SafetyCheckResult(passed=False, check_name="test", reason="Too high")
     assert result.passed is False
     assert result.reason == "Too high"
-    print("[PASS] SafetyCheckResult — passed=False carries reason string")
+    print("[PASS] SafetyCheckResult: passed=False carries reason string")
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ def test_session_state_operational():
     ctrl = _fresh_controller()
     result = ctrl.check_session_state(_session())
     assert result.passed is True
-    print("[PASS] check_session_state — operational session passes")
+    print("[PASS] check_session_state: operational session passes")
 
 
 def test_session_state_paused():
@@ -79,7 +79,7 @@ def test_session_state_paused():
     result = ctrl.check_session_state(_session(paused=True))
     assert result.passed is False
     assert "paused" in result.reason.lower()
-    print("[PASS] check_session_state — paused session fails")
+    print("[PASS] check_session_state: paused session fails")
 
 
 def test_session_state_safety_locked():
@@ -87,7 +87,7 @@ def test_session_state_safety_locked():
     result = ctrl.check_session_state(_session(safety_locked=True))
     assert result.passed is False
     assert "lock" in result.reason.lower() or "safe" in result.reason.lower()
-    print("[PASS] check_session_state — safety-locked session fails")
+    print("[PASS] check_session_state: safety-locked session fails")
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ def test_position_size_passes():
     ctrl = _fresh_controller()
     result = ctrl.check_position_size(amount_bnb=1.0, wallet_balance_bnb=2.0)
     assert result.passed is True
-    print("[PASS] check_position_size — 50% allocation passes")
+    print("[PASS] check_position_size: 50% allocation passes")
 
 
 def test_position_size_fails_over_limit():
@@ -107,7 +107,7 @@ def test_position_size_fails_over_limit():
     ctrl = _fresh_controller()
     result = ctrl.check_position_size(amount_bnb=0.95, wallet_balance_bnb=1.0)
     assert result.passed is False
-    print("[PASS] check_position_size — 95% allocation blocked")
+    print("[PASS] check_position_size: 95% allocation blocked")
 
 
 def test_position_size_zero_wallet_fails():
@@ -115,7 +115,7 @@ def test_position_size_zero_wallet_fails():
     ctrl = _fresh_controller()
     result = ctrl.check_position_size(amount_bnb=0.0, wallet_balance_bnb=0.0)
     assert result.passed is False
-    print("[PASS] check_position_size — zero wallet balance fails")
+    print("[PASS] check_position_size: zero wallet balance fails")
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ def test_gas_reserve_passes():
     # wallet=1.0, allocate=0.5 → 0.5 BNB remaining, well above MIN_BNB_FOR_GAS.
     result = ctrl.check_gas_reserve(wallet_balance_bnb=1.0, amount_bnb=0.5)
     assert result.passed is True
-    print(f"[PASS] check_gas_reserve — passes when remaining > {MIN_BNB_FOR_GAS} BNB")
+    print(f"[PASS] check_gas_reserve: passes when remaining > {MIN_BNB_FOR_GAS} BNB")
 
 
 def test_gas_reserve_fails():
@@ -137,7 +137,7 @@ def test_gas_reserve_fails():
     # wallet=0.01, allocate=0.009 → 0.001 BNB remaining, below MIN_BNB_FOR_GAS.
     result = ctrl.check_gas_reserve(wallet_balance_bnb=0.01, amount_bnb=0.009)
     assert result.passed is False
-    print("[PASS] check_gas_reserve — fails when remaining < MIN_BNB_FOR_GAS")
+    print("[PASS] check_gas_reserve: fails when remaining < MIN_BNB_FOR_GAS")
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ def test_trigger_emergency_pause():
 
     ctrl.trigger_emergency_pause(session, reason="Test emergency")
     assert session.safety_locked is True
-    print("[PASS] trigger_emergency_pause — sets session.safety_locked=True")
+    print("[PASS] trigger_emergency_pause: sets session.safety_locked=True")
 
 
 def test_clear_safety_lock():
@@ -159,7 +159,7 @@ def test_clear_safety_lock():
     session = _session(safety_locked=True)
     ctrl.clear_safety_lock(session)
     assert session.safety_locked is False
-    print("[PASS] clear_safety_lock — clears session.safety_locked")
+    print("[PASS] clear_safety_lock: clears session.safety_locked")
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ def test_anomaly_counter_increments():
     ctrl.record_anomaly_cycle(session, has_anomalies=True)
     count = ctrl._consecutive_anomalies.get(session.chat_id, 0)
     assert count == 1
-    print("[PASS] record_anomaly_cycle — counter increments on anomalous cycle")
+    print("[PASS] record_anomaly_cycle: counter increments on anomalous cycle")
 
 
 def test_anomaly_counter_resets_on_clean_cycle():
@@ -188,7 +188,7 @@ def test_anomaly_counter_resets_on_clean_cycle():
 
     count = ctrl._consecutive_anomalies.get(session.chat_id, 0)
     assert count == 0
-    print("[PASS] record_anomaly_cycle — counter resets to 0 on clean cycle")
+    print("[PASS] record_anomaly_cycle: counter resets to 0 on clean cycle")
 
 
 def test_anomaly_counter_triggers_safety_lock():
@@ -197,7 +197,7 @@ def test_anomaly_counter_triggers_safety_lock():
     ctrl = _fresh_controller()
     session = _session()
 
-    # Fire exactly threshold-1 anomalous cycles — no lock yet.
+    # Fire exactly threshold-1 anomalous cycles; no lock yet.
     for _ in range(SAFETY_ANOMALY_LOCK_THRESHOLD - 1):
         result = ctrl.record_anomaly_cycle(session, has_anomalies=True)
         assert result.passed is True
@@ -207,7 +207,7 @@ def test_anomaly_counter_triggers_safety_lock():
     result = ctrl.record_anomaly_cycle(session, has_anomalies=True)
     assert result.passed is False
     assert session.safety_locked is True
-    print(f"[PASS] record_anomaly_cycle — lock after {SAFETY_ANOMALY_LOCK_THRESHOLD} consecutive anomalies")
+    print(f"[PASS] record_anomaly_cycle: lock after {SAFETY_ANOMALY_LOCK_THRESHOLD} consecutive anomalies")
 
 
 def test_reset_anomaly_counter():
@@ -221,7 +221,7 @@ def test_reset_anomaly_counter():
 
     count = ctrl._consecutive_anomalies.get(session.chat_id, 0)
     assert count == 0
-    print("[PASS] reset_anomaly_counter — counter cleared to 0")
+    print("[PASS] reset_anomaly_counter: counter cleared to 0")
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ def test_pre_checks_paused_session_blocked():
     )
     assert result.passed is False
     assert result.check_name == "session_state"
-    print("[PASS] run_pre_execution_checks — paused session blocked at session_state")
+    print("[PASS] run_pre_execution_checks: paused session blocked at session_state")
 
 
 def test_pre_checks_zero_balance_blocked():
@@ -258,7 +258,7 @@ def test_pre_checks_zero_balance_blocked():
         mock_w3, session, amount_bnb=0.0, wallet_balance_bnb=0.0
     )
     assert result.passed is False
-    print(f"[PASS] run_pre_execution_checks — zero balance blocked at {result.check_name}")
+    print(f"[PASS] run_pre_execution_checks: zero balance blocked at {result.check_name}")
 
 
 def test_pre_checks_all_pass_with_good_inputs():
@@ -268,7 +268,7 @@ def test_pre_checks_all_pass_with_good_inputs():
 
     from unittest.mock import MagicMock
     mock_w3 = MagicMock()
-    # 1 Gwei — well below MAX_GAS_PRICE_GWEI.
+    # 1 Gwei, well below MAX_GAS_PRICE_GWEI.
     mock_w3.eth.gas_price = 1_000_000_000
 
     # wallet=2.0 BNB, allocate=0.5 BNB → 1.5 BNB remaining (well above gas reserve).
@@ -276,11 +276,11 @@ def test_pre_checks_all_pass_with_good_inputs():
         mock_w3, session, amount_bnb=0.5, wallet_balance_bnb=2.0
     )
     assert result.passed is True
-    print("[PASS] run_pre_execution_checks — all checks pass with sane inputs")
+    print("[PASS] run_pre_execution_checks: all checks pass with sane inputs")
 
 
 # ===========================================================================
-# Tier 2 — live BSC Testnet (gas price only)
+# Tier 2: live BSC Testnet (gas price only)
 # ===========================================================================
 
 def test_check_gas_price_live():
@@ -293,7 +293,7 @@ def test_check_gas_price_live():
         f"Gas price check failed: {result.reason}. "
         f"(Is BSC Testnet gas price above {MAX_GAS_PRICE_GWEI} Gwei?)"
     )
-    print(f"[PASS] check_gas_price — live testnet gas price below {MAX_GAS_PRICE_GWEI} Gwei limit")
+    print(f"[PASS] check_gas_price: live testnet gas price below {MAX_GAS_PRICE_GWEI} Gwei limit")
 
 
 # ===========================================================================
@@ -334,7 +334,7 @@ if __name__ == "__main__":
     test_pre_checks_zero_balance_blocked()
     test_pre_checks_all_pass_with_good_inputs()
 
-    # Tier 2 — live
+    # Tier 2: live
     test_check_gas_price_live()
 
     print()

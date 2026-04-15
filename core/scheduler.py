@@ -15,7 +15,7 @@ separate lookup table.
 Design: BotScheduler wraps a BackgroundScheduler instance. The scheduler
 runs in a daemon thread separate from the python-telegram-bot asyncio event
 loop. Communication back to Telegram is handled through a notify_func callback
-that the dispatcher calls — this decouples the cycle logic from async I/O.
+that the dispatcher calls; this decouples the cycle logic from async I/O.
 """
 
 import logging
@@ -59,7 +59,7 @@ class BotScheduler:
         """
         Start the background scheduler.
 
-        Safe to call multiple times — no-op if already running.
+        Safe to call multiple times; no-op if already running.
         Called once during bot startup in bot/app.py.
         """
         if not self._started:
@@ -101,7 +101,7 @@ class BotScheduler:
         See dispatcher.build_cycle_callback() for a ready-made helper.
 
         Args:
-            chat_id:  Telegram chat ID — used as the job identifier.
+            chat_id:  Telegram chat ID, used as the job identifier.
             callback: Zero-argument callable that runs one cycle.
         """
         job_id = f"user_{chat_id}"

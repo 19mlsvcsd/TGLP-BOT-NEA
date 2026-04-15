@@ -1,4 +1,4 @@
-# TGLP Bot — Telegram Liquidity Pool Manager
+# TGLP Bot: Telegram Liquidity Pool Manager
 
 **OCR A Level Computer Science NEA Project**
 
@@ -8,7 +8,7 @@ A Telegram bot that monitors PancakeSwap V3 liquidity pools on the BSC Testnet, 
 
 ## Features
 
-- **Onboarding**: Secure `/start` flow — wallet private key is accepted, used to derive the public address, then discarded from memory. Never stored on disk.
+- **Onboarding**: Secure `/start` flow; the wallet private key is accepted, used to derive the public address, then discarded from memory. Never stored on disk.
 - **Pool discovery**: Fetches live pool data from DeFiLlama's yields API and filters it by the user's chosen strategy.
 - **Delta analysis**: Compares consecutive market snapshots to detect significant APR/TVL changes and anomalous data points.
 - **Decision engine**: Scores pools using a weighted formula (APR 40%, TVL 30%, stability 20%, volume 10%) and recommends ALLOCATE, REBALANCE, COMPOUND, or NO_ACTION.
@@ -55,12 +55,12 @@ TGLP-BOT-NEA/
 │   ├── formatters.py          # Telegram MarkdownV2 formatting utilities
 │   └── validators.py          # Input validation (private key, address, amounts)
 └── tests/
-    ├── test_validators.py     # helpers/validators.py — 37 tests
-    ├── test_analyser.py       # core/analyser.py — 16 tests
-    ├── test_decision_engine.py# core/decision_engine.py — 16 tests
-    ├── test_portfolio.py      # core/portfolio.py — 17 tests
-    ├── test_safety.py         # core/safety.py — 20 tests (19 unit + 1 live)
-    └── test_sprint12.py       # End-to-end integration — 18 tests (17 unit + 1 live)
+    ├── test_validators.py     # helpers/validators.py: 37 tests
+    ├── test_analyser.py       # core/analyser.py: 16 tests
+    ├── test_decision_engine.py# core/decision_engine.py: 16 tests
+    ├── test_portfolio.py      # core/portfolio.py: 17 tests
+    ├── test_safety.py         # core/safety.py: 20 tests (19 unit + 1 live)
+    └── test_sprint12.py       # End-to-end integration: 18 tests (17 unit + 1 live)
 ```
 
 ---
@@ -205,9 +205,9 @@ BSC Testnet    ─┘                                         │
 ### Database
 
 SQLite (`tglp_bot.db`) stores three tables:
-- `logs` — bot event log (INFO/WARNING/ERROR entries)
-- `trades` — executed trade records (action type, pool, tx hash, gas cost, status)
-- `watchlist` — user-defined APR/TVL threshold alerts (soft-deleted with `active=0`)
+- `logs`: bot event log (INFO/WARNING/ERROR entries)
+- `trades`: executed trade records (action type, pool, tx hash, gas cost, status)
+- `watchlist`: user-defined APR/TVL threshold alerts (soft-deleted with `active=0`)
 
 Session state (position details, P&L accumulators, strategy) is held **in memory only** and is reset if the bot process restarts. Users must re-run `/start` after a restart.
 
@@ -217,7 +217,7 @@ Session state (position details, P&L accumulators, strategy) is held **in memory
 
 - **Testnet data**: DeFiLlama returns mainnet pool data. Pool addresses from DeFiLlama are mainnet addresses and cannot be used for on-chain execution on BSC Testnet. The decision engine uses mainnet data for discovery and scoring; execution uses testnet for safety during development.
 - **Token pricing**: Unknown tokens (anything other than USDT, USDC, BUSD, DAI, WBNB, BNB) are priced at $0. This prevents P&L overstatement but undercounts value when exotic tokens are held.
-- **In-memory session**: If the bot process restarts, all user sessions are lost. Re-onboarding is required. This is intentional — private keys must not be stored on disk.
+- **In-memory session**: If the bot process restarts, all user sessions are lost. Re-onboarding is required. This is intentional; private keys must not be stored on disk.
 - **Single-hop swaps**: `execute_allocate` uses single-hop V3 swaps via the Router. Multi-hop routing (e.g., TOKEN → WBNB → USDT) is not implemented.
 - **Slippage**: `amountOutMinimum = 0` in swap calls. This is intentional for testnet shallow liquidity pools. Mainnet deployment would require oracle-derived minimum amounts.
 - **No persistence across restarts**: The `consecutive_anomalies` counter in `SafetyController` and all session state resets on process restart.

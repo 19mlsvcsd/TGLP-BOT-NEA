@@ -433,7 +433,7 @@ def build_cycle_callback(
     are visible to each subsequent cycle without re-registering the job.
 
     Args:
-        session:     The initial UserSession — used only to extract chat_id.
+        session:     The initial UserSession, used only to extract chat_id.
         notify_func: Telegram notification callback.
         w3:          Connected Web3 instance shared across all cycles.
 

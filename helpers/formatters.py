@@ -206,7 +206,7 @@ def tx_hash_link(tx_hash: str) -> str:
     """
     Build a Telegram inline URL for a transaction hash pointing to BSCScan Testnet.
 
-    Returns a MarkdownV2-formatted link — already escaped and ready to embed
+    Returns a MarkdownV2-formatted link, already escaped and ready to embed
     in a message that uses parse_mode=MarkdownV2.
 
     Args:
@@ -245,7 +245,7 @@ def format_pool_info(pool: Dict[str, Any], rank: Optional[int] = None) -> str:
     apr = pool.get("apr", 0.0)
     tvl = pool.get("tvl_usd", 0.0)
     volume = pool.get("volume_24h", 0.0)
-    fee_tier = pool.get("fee_tier", "—")
+    fee_tier = pool.get("fee_tier", "N/A")
     address = pool.get("pool", "")
     pair_type = escape_md(pool.get("pair_type", "unknown"))
 
@@ -277,14 +277,14 @@ def format_tx_summary(trade: Dict[str, Any]) -> str:
     Returns:
         MarkdownV2 string for one trade entry.
     """
-    action = escape_md(trade.get("action_type", "—").replace("_", " ").title())
+    action = escape_md(trade.get("action_type", "N/A").replace("_", " ").title())
     ts = format_timestamp(trade.get("timestamp", ""))
     status = trade.get("status", "pending")
     status_icon = "✅" if status == "confirmed" else ("❌" if status == "failed" else "⏳")
 
-    token_in = escape_md(trade.get("token_in") or "—")
-    token_out = escape_md(trade.get("token_out") or "—")
-    amount_in = escape_md(trade.get("amount_in") or "—")
+    token_in = escape_md(trade.get("token_in") or "N/A")
+    token_out = escape_md(trade.get("token_out") or "N/A")
+    amount_in = escape_md(trade.get("amount_in") or "N/A")
 
     tx_hash = trade.get("tx_hash")
     hash_str = tx_hash_link(tx_hash) if tx_hash else "pending"
@@ -293,7 +293,7 @@ def format_tx_summary(trade: Dict[str, Any]) -> str:
     gas_str = f"`{escape_md(gas_bnb)} BNB`" if gas_bnb else "N/A"
 
     return (
-        f"{status_icon} *{action}* — {escape_md(ts)}\n"
+        f"{status_icon} *{action}* on {escape_md(ts)}\n"
         f"  {token_in} → {token_out} \\(amt: `{amount_in}`\\)\n"
         f"  TX: {hash_str} \\| Gas: {gas_str}"
     )

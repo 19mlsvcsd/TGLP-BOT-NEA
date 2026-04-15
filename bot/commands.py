@@ -1,7 +1,7 @@
 """
 bot/commands.py
 ===============
-Command handlers for TGLP Bot — Sprint 11 full implementations.
+Command handlers for TGLP Bot (Sprint 11, full implementations).
 
 Every Telegram slash command has its handler function here. All commands
 that were stubs in earlier sprints are now fully wired to their core modules.
@@ -70,7 +70,7 @@ async def dashboard_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /dashboard — portfolio overview: position, P&L, gas costs, system health.
+    /dashboard: portfolio overview, position, P&L, gas costs, system health.
     """
     if not await _require_session(update):
         return
@@ -97,7 +97,7 @@ async def dashboard_command(
     except Exception as exc:
         logger.warning("dashboard: could not fetch BNB price: %s", exc)
 
-    # build_portfolio_summary makes one live RPC call — run in thread pool.
+    # build_portfolio_summary makes one live RPC call, run in thread pool.
     loop = asyncio.get_running_loop()
     summary = await loop.run_in_executor(
         None, build_portfolio_summary, w3, session, bnb_price
@@ -172,7 +172,7 @@ async def allocate_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /allocate — manually trigger an immediate analysis and allocation cycle.
+    /allocate: manually trigger an immediate analysis and allocation cycle.
 
     Runs the full dispatcher pipeline (market snapshot → analysis → decision
     → execute/propose) in a thread-pool executor so the event loop is not
@@ -232,7 +232,7 @@ async def explore_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /explore — browse top pools filtered and scored by the user's strategy.
+    /explore: browse top pools filtered and scored by the user's strategy.
 
     Shows _EXPLORE_PAGE_SIZE pools per page with a pagination keyboard.
     Pool detail buttons store the address fragment in callback_data so
@@ -305,7 +305,7 @@ async def _send_explore_page(update, context, scored, session, page: int) -> Non
 
     lines = [
         f"🔍 *Pool Explorer*\n"
-        f"Strategy: *{escape_md(session.active_strategy.name)}* — "
+        f"Strategy: *{escape_md(session.active_strategy.name)}*, "
         f"{escape_md(str(len(scored)))} pools matched\n"
     ]
     for i, sp in enumerate(page_pools):
@@ -337,14 +337,14 @@ async def _send_explore_page(update, context, scored, session, page: int) -> Non
 
 
 # ---------------------------------------------------------------------------
-# /watch — entry point (conversation is in bot/conversations.py)
+# /watch entry point (conversation is in bot/conversations.py)
 # ---------------------------------------------------------------------------
 
 async def watch_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /watch — redirects into the /watch ConversationHandler.
+    /watch: redirects into the /watch ConversationHandler.
 
     The ConversationHandler in bot/conversations.py registers its own
     entry_point CommandHandler for /watch, so this standalone handler is
@@ -358,9 +358,9 @@ async def watch_command(
         "👁 *Add to Watchlist*\n\n"
         "Use /watch again to start monitoring a pool address or token\\.\n\n"
         "Supported thresholds:\n"
-        "• APR above X% — alert when yield rises above your target\n"
-        "• APR below X% — alert when yield drops too low\n"
-        "• TVL below $X — alert when pool liquidity falls\n\n"
+        "• APR above X%: alert when yield rises above your target\n"
+        "• APR below X%: alert when yield drops too low\n"
+        "• TVL below $X: alert when pool liquidity falls\n\n"
         "Type /cancel at any time to exit the setup\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
@@ -374,7 +374,7 @@ async def alerts_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /alerts — view and manage active watchlist alerts.
+    /alerts: view and manage active watchlist alerts.
     """
     if not await _require_session(update):
         return
@@ -413,7 +413,7 @@ async def history_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /history — paginated list of all transactions with action-type and date filters.
+    /history: paginated list of all transactions with action-type and date filters.
     """
     if not await _require_session(update):
         return
@@ -443,7 +443,7 @@ async def _send_history_page(
         update:        Telegram Update object.
         session:       UserSession for the requesting user.
         page:          0-based page index.
-        context:       ContextTypes.DEFAULT_TYPE — reads 'history_filter' and
+        context:       ContextTypes.DEFAULT_TYPE, reads 'history_filter' and
                        'history_date' from user_data when present.
         action_filter: Active action-type key; 'all' means no filter.
         date_filter:   Active date-range key; 'all' = no limit, '7' = last 7
@@ -491,7 +491,7 @@ async def _send_history_page(
         return
 
     header = (
-        f"📜 *Transaction History*{filter_label} — "
+        f"📜 *Transaction History*{filter_label}, "
         f"Page {page + 1}/{total_pages} "
         f"\\({escape_md(str(total))} total\\)\n"
     )
@@ -516,7 +516,7 @@ async def export_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /export — choose between a formatted-text export and a CSV file download.
+    /export: choose between a formatted-text export and a CSV file download.
 
     Displays a format selection keyboard. The actual generation is handled in
     bot/callbacks.py (_handle_export) when the user taps one of the buttons.
@@ -637,7 +637,7 @@ async def _send_export_csv(update_or_query, session) -> None:
         document=bio,
         filename="trade_history.csv",
         caption=(
-            f"📊 Trade history export — {len(trades)} "
+            f"📊 Trade history export: {len(trades)} "
             f"trade{'s' if len(trades) != 1 else ''}"
         ),
     )
@@ -651,7 +651,7 @@ async def settings_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /settings — view and change strategy, compounding, auto-execute, pause.
+    /settings: view and change strategy, compounding, auto-execute, pause.
     """
     if not await _require_session(update):
         return
@@ -683,7 +683,7 @@ async def reset_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /reset — clear the session, stop the scheduler, and wipe all user data.
+    /reset: clear the session, stop the scheduler, and wipe all user data.
 
     Shows a confirmation keyboard before proceeding (handled in callbacks.py).
     """
@@ -705,17 +705,17 @@ async def reset_command(
 
 
 # ---------------------------------------------------------------------------
-# /help — fully implemented in Sprint 3, unchanged
+# /help: fully implemented in Sprint 3, unchanged
 # ---------------------------------------------------------------------------
 
 async def help_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /help — comprehensive command guide and DeFi concept explainers.
+    /help: comprehensive command guide and DeFi concept explainers.
 
     Optionally accepts a command name argument for focused help:
-    /help dashboard — detailed help for /dashboard.
+    /help dashboard: detailed help for /dashboard.
     """
     args = context.args
     if args:
@@ -723,61 +723,61 @@ async def help_command(
         return
 
     help_text = (
-        "📖 *TGLP Bot — Help Guide*\n\n"
+        "📖 *TGLP Bot: Help Guide*\n\n"
         "I automate liquidity pool management on PancakeSwap V3 \\(BSC Testnet\\)\\. "
         "Here is everything I can do:\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*🚀 Getting Started*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "/start — Set up your wallet and choose a strategy\\. "
+        "/start: Set up your wallet and choose a strategy\\. "
         "You'll need a BSC Testnet private key and some testnet BNB\\.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*📊 Portfolio*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "/dashboard — Rich overview of your position: token amounts, unrealised "
+        "/dashboard: Rich overview of your position, token amounts, unrealised "
         "P&L, total fees earned, gas spent, and system health status\\.\n\n"
-        "/history — Paginated list of every transaction the bot has made for you, "
+        "/history: Paginated list of every transaction the bot has made for you, "
         "with BSCScan links and gas costs\\.\n\n"
-        "/export — Download your full trade history as a formatted text summary\\.\n\n"
+        "/export: Download your full trade history as a formatted text summary\\.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*⚡ Trading*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "/allocate — Manually trigger an analysis and allocation cycle right now\\. "
+        "/allocate: Manually trigger an analysis and allocation cycle right now\\. "
         "Useful for testing or when you want immediate action\\.\n\n"
-        "/explore — Browse the top pools that match your strategy\\. "
+        "/explore: Browse the top pools that match your strategy\\. "
         "See APR, TVL, 24h volume, and fee tier for each pool\\.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*🔔 Alerts & Watchlist*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "/watch — Add a pool or token to your watchlist with a custom alert "
+        "/watch: Add a pool or token to your watchlist with a custom alert "
         "threshold \\(e\\.g\\., alert me if BNB/USDT APR drops below 5%\\)\\.\n\n"
-        "/alerts — View and remove your active watchlist alerts\\.\n\n"
+        "/alerts: View and remove your active watchlist alerts\\.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*⚙️ Configuration*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "/settings — Change your strategy, toggle compounding, switch execution "
+        "/settings: Change your strategy, toggle compounding, switch execution "
         "mode \\(auto vs\\. confirm\\), or adjust slippage tolerance\\.\n\n"
-        "/reset — Clear your session and stop the bot\\. "
+        "/reset: Clear your session and stop the bot\\. "
         "Your trade history is kept in the database\\.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "*💡 DeFi Concepts*\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Use /help followed by a concept name for a brief explanation:\n"
-        "`/help lp` — Liquidity Pools\n"
-        "`/help apr` — APR vs\\. APY\n"
-        "`/help tvl` — Total Value Locked\n"
-        "`/help il` — Impermanent Loss\n"
-        "`/help v3` — PancakeSwap V3 concentrated liquidity\n\n"
+        "`/help lp`: Liquidity Pools\n"
+        "`/help apr`: APR vs\\. APY\n"
+        "`/help tvl`: Total Value Locked\n"
+        "`/help il`: Impermanent Loss\n"
+        "`/help v3`: PancakeSwap V3 concentrated liquidity\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━\n"
         "_TGLP Bot is an OCR A Level CS NEA project\\. "
-        "All activity is on BSC Testnet — no real funds are involved\\._"
+        "All activity is on BSC Testnet, so no real funds are involved\\._"
     )
     await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN_V2)
 
@@ -817,22 +817,22 @@ async def _help_specific(update: Update, topic: str) -> None:
         "watch": (
             "👁 */watch*\n\n"
             "Monitor a pool or token without putting money in it\\.\n\n"
-            "Usage: `/watch` — starts a guided setup\\.\n\n"
+            "Usage: `/watch` starts a guided setup\\.\n\n"
             "You'll be asked to set a threshold type:\n"
-            "• APR below X% — alert when yield drops too low\n"
-            "• APR above X% — alert when a new opportunity appears\n"
-            "• TVL below $X — alert when pool liquidity falls"
+            "• APR below X%: alert when yield drops too low\n"
+            "• APR above X%: alert when a new opportunity appears\n"
+            "• TVL below $X: alert when pool liquidity falls"
         ),
         "settings": (
             "⚙️ */settings*\n\n"
             "Adjust your bot configuration:\n"
-            "• *Change Strategy* — switch between Conservative, Balanced, "
+            "• *Change Strategy*: switch between Conservative, Balanced, "
             "Aggressive, or Custom\n"
-            "• *Compounding* — toggle auto\\-reinvestment of fees on/off\n"
-            "• *Execution Mode* — auto \\(acts immediately\\) or confirm "
+            "• *Compounding*: toggle auto\\-reinvestment of fees on/off\n"
+            "• *Execution Mode*: auto \\(acts immediately\\) or confirm "
             "\\(asks before each trade\\)\n"
-            "• *Slippage* — change your max acceptable slippage\n"
-            "• *Pause/Resume* — pause the scheduler without losing your session"
+            "• *Slippage*: change your max acceptable slippage\n"
+            "• *Pause/Resume*: pause the scheduler without losing your session"
         ),
         "reset": (
             "⚠️ */reset*\n\n"
@@ -858,7 +858,7 @@ async def _help_specific(update: Update, topic: str) -> None:
             "compounding\\. If a pool has 20% APR, you earn 20% of your "
             "deposit over a year if you never reinvest\\.\n\n"
             "*APY* \\(Annual Percentage Yield\\) includes the effect of "
-            "compounding — reinvesting your earnings so they also earn fees\\. "
+            "compounding, which means reinvesting your earnings so they also earn fees\\. "
             "APY is always higher than APR for the same pool\\.\n\n"
             "TGLP Bot displays APR from DeFiLlama and calculates your "
             "effective APY based on your compounding frequency\\."
@@ -871,7 +871,7 @@ async def _help_specific(update: Update, topic: str) -> None:
             "• Higher TVL generally means more trading volume → more fees\n"
             "• Higher TVL means more liquidity to trade against → less slippage "
             "when you enter or exit\n"
-            "• Very low TVL pools carry exit liquidity risk — you may not be "
+            "• Very low TVL pools carry exit liquidity risk; you may not be "
             "able to withdraw your full position without heavy slippage\\."
         ),
         "il": (
@@ -879,17 +879,17 @@ async def _help_specific(update: Update, topic: str) -> None:
             "When you provide liquidity, the ratio of your two tokens changes "
             "as traders swap\\. If the price of one token moves significantly, "
             "you end up holding more of the falling token and less of the "
-            "rising one — compared to just holding both tokens\\.\n\n"
+            "rising one, compared to just holding both tokens\\.\n\n"
             "This difference is called impermanent loss\\. It is 'impermanent' "
             "because if the price returns to the original ratio, the loss "
             "disappears\\.\n\n"
             "*How to reduce IL risk:*\n"
-            "• Use stablecoin\\-stablecoin pools \\(Conservative strategy\\) — "
+            "• Use stablecoin\\-stablecoin pools \\(Conservative strategy\\), as "
             "both tokens hold $1, so price ratio barely changes\n"
             "• Set tight tick ranges in V3 \\(more fees, but higher IL risk\\)"
         ),
         "v3": (
-            "🥞 *PancakeSwap V3 — Concentrated Liquidity*\n\n"
+            "🥞 *PancakeSwap V3: Concentrated Liquidity*\n\n"
             "V3 allows you to concentrate your liquidity within a specific "
             "price range \\(called ticks\\)\\. If trades happen within your range, "
             "you earn fees at a much higher rate than V2\\.\n\n"

@@ -9,7 +9,7 @@ trust their inputs and focus on their own responsibilities.
 
 Validation functions return a tuple of (is_valid: bool, error_message: str).
 The error_message is empty when is_valid is True, and human-readable when False
-— ready to be sent directly to the user in a Telegram message.
+ready to be sent directly to the user in a Telegram message.
 """
 
 import re
@@ -69,7 +69,7 @@ def validate_ethereum_address(address: str) -> Tuple[bool, str]:
     """
     Validate an Ethereum/BSC wallet or contract address.
 
-    Accepts both checksummed (EIP-55) and lowercased addresses — but always
+    Accepts both checksummed (EIP-55) and lowercased addresses, but always
     normalises to checksum format internally. A 42-character '0x'-prefixed hex
     string is required.
 
@@ -98,12 +98,12 @@ def validate_ethereum_address(address: str) -> Tuple[bool, str]:
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", stripped):
         return False, "Address contains invalid characters."
 
-    # Warn if the address fails EIP-55 checksum but still accept it —
+    # Warn if the address fails EIP-55 checksum but still accept it;
     # many wallets export lowercase addresses.
     try:
         checksummed = to_checksum_address(stripped)
         if checksummed != stripped and stripped != stripped.lower():
-            # Mixed-case but not valid checksum — likely a typo.
+            # Mixed-case but not valid checksum, likely a typo.
             return (
                 False,
                 "Address has incorrect capitalisation (failed EIP-55 checksum). "

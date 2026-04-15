@@ -5,20 +5,20 @@ Inline keyboard layouts for TGLP Bot.
 
 Every InlineKeyboardMarkup used anywhere in the bot is defined here as a
 function that returns a fresh keyboard object. Centralising keyboards means
-button labels and callback data strings are defined in one place — if a
+button labels and callback data strings are defined in one place. If a
 callback pattern changes, only this file needs updating.
 
 Callback data naming convention:
     <scope>_<action>[_<parameter>]
 
 Scopes used in this file:
-    ob_       — onboarding conversation
-    cmd_      — top-level command responses
-    cfg_      — settings/config changes
-    pool_     — pool explorer actions
-    hist_     — history pagination
-    watch_    — watchlist management
-    alert_    — alert management
+    ob_       : onboarding conversation
+    cmd_      : top-level command responses
+    cfg_      : settings/config changes
+    pool_     : pool explorer actions
+    hist_     : history pagination
+    watch_    : watchlist management
+    alert_    : alert management
 """
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -182,8 +182,8 @@ def settings_menu_keyboard(
     active without reading a separate status message.
 
     Args:
-        compound_enabled: Current compounding state — shown on the button label.
-        auto_execute:     Current execution mode — shown on the button label.
+        compound_enabled: Current compounding state, shown on the button label.
+        auto_execute:     Current execution mode, shown on the button label.
     """
     compound_label = (
         "🔄 Compounding: ON" if compound_enabled else "🔄 Compounding: OFF"

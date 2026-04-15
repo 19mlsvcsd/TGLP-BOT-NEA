@@ -5,25 +5,25 @@ Multi-step conversation handlers beyond the onboarding flow.
 
 1. **/watch setup** (fully implemented, Sprint 11)
    Three-state guided flow to add a pool or token to the watchlist:
-     State 0 — WATCH_AWAITING_IDENTIFIER:
+     State 0 (WATCH_AWAITING_IDENTIFIER):
        User sends a pool address or token symbol.
-     State 1 — WATCH_AWAITING_THRESHOLD_TYPE:
+     State 1 (WATCH_AWAITING_THRESHOLD_TYPE):
        User picks a threshold type from an inline keyboard
        (apr_above / apr_below / tvl_below / price_change_pct).
-     State 2 — WATCH_AWAITING_THRESHOLD_VALUE:
+     State 2 (WATCH_AWAITING_THRESHOLD_VALUE):
        User types the numeric threshold value.
        core.watchlist.add_watch_item() is called and the item is saved.
 
 2. **Custom strategy editor** (Sprint 13)
    Seven-state guided flow triggered by /customstrategy or the
    "Custom Strategy" option in /settings → Change Strategy:
-     State 0 — CUST_PAIRS:       Choose allowed pair types.
-     State 1 — CUST_MIN_TVL:     Enter minimum TVL in USD.
-     State 2 — CUST_SLIPPAGE:    Enter max slippage percentage.
-     State 3 — CUST_REBAL:       Enter rebalance threshold (0.05–0.50).
-     State 4 — CUST_COMPOUND:    Choose compound interval or disable.
-     State 5 — CUST_AUTOEXEC:    Choose auto-execute or confirm mode.
-     State 6 — CUST_CONFIRM:     Review summary and confirm or cancel.
+     State 0 (CUST_PAIRS):       Choose allowed pair types.
+     State 1 (CUST_MIN_TVL):     Enter minimum TVL in USD.
+     State 2 (CUST_SLIPPAGE):    Enter max slippage percentage.
+     State 3 (CUST_REBAL):       Enter rebalance threshold (0.05-0.50).
+     State 4 (CUST_COMPOUND):    Choose compound interval or disable.
+     State 5 (CUST_AUTOEXEC):    Choose auto-execute or confirm mode.
+     State 6 (CUST_CONFIRM):     Review summary and confirm or cancel.
 """
 
 import logging
@@ -80,7 +80,7 @@ def _threshold_type_keyboard() -> InlineKeyboardMarkup:
 
 
 # ---------------------------------------------------------------------------
-# State 0 — entry: ask for identifier
+# State 0: ask for identifier
 # ---------------------------------------------------------------------------
 
 async def watch_start(
@@ -147,7 +147,7 @@ async def watch_receive_identifier(
     from helpers.formatters import escape_md
     await update.message.reply_text(
         f"Got it: *{escape_md(item_type)}* `{escape_md(identifier)}`\n\n"
-        f"Now choose the *threshold type* — what condition should trigger the alert?",
+        f"Now choose the *threshold type*. What condition should trigger the alert?",
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_threshold_type_keyboard(),
     )
@@ -191,25 +191,25 @@ async def watch_receive_threshold_type(
     if threshold_type == "apr_above":
         prompt = (
             "Enter the *APR threshold* as a percentage "
-            "\\(e\\.g\\. `20` for 20%\\) — alert fires when APR rises *above* this:\n\n"
+            "\\(e\\.g\\. `20` for 20%\\), alert fires when APR rises *above* this:\n\n"
             "Type /cancel to exit\\."
         )
     elif threshold_type == "apr_below":
         prompt = (
             "Enter the *APR threshold* as a percentage "
-            "\\(e\\.g\\. `5` for 5%\\) — alert fires when APR drops *below* this:\n\n"
+            "\\(e\\.g\\. `5` for 5%\\), alert fires when APR drops *below* this:\n\n"
             "Type /cancel to exit\\."
         )
     elif threshold_type == "tvl_below":
         prompt = (
             "Enter the *TVL threshold* in USD "
-            "\\(e\\.g\\. `50000` for \\$50,000\\) — alert fires when TVL drops *below* this:\n\n"
+            "\\(e\\.g\\. `50000` for \\$50,000\\), alert fires when TVL drops *below* this:\n\n"
             "Type /cancel to exit\\."
         )
     else:  # price_change_pct
         prompt = (
             "Enter the *price change threshold* as a percentage "
-            "\\(e\\.g\\. `5` for 5%\\) — alert fires when BNB price moves "
+            "\\(e\\.g\\. `5` for 5%\\), alert fires when BNB price moves "
             "by *at least* this amount in one cycle:\n\n"
             "Type /cancel to exit\\."
         )
@@ -402,7 +402,7 @@ async def custom_strat_start(
         _cs_cleanup(context)
         await query.edit_message_text(
             "🔧 *Custom Strategy Setup*\n\n"
-            "*Step 1 of 6* — Choose which *pair types* to target:\n\n"
+            "*Step 1 of 6:* Choose which *pair types* to target:\n\n"
             "• Stable–Stable: USDT/USDC pools \\(lowest risk, lower APR\\)\n"
             "• Stable \\+ Large\\-Cap: includes BNB/USDT pools\n"
             "• Large\\-Cap only: BNB/ETH etc\\. \\(higher volatility\\)\n"
@@ -421,7 +421,7 @@ async def custom_strat_start(
         _cs_cleanup(context)
         await update.message.reply_text(
             "🔧 *Custom Strategy Setup*\n\n"
-            "*Step 1 of 6* — Choose which *pair types* to target:\n\n"
+            "*Step 1 of 6:* Choose which *pair types* to target:\n\n"
             "• Stable–Stable: USDT/USDC pools \\(lowest risk, lower APR\\)\n"
             "• Stable \\+ Large\\-Cap: includes BNB/USDT pools\n"
             "• Large\\-Cap only: BNB/ETH etc\\. \\(higher volatility\\)\n"
@@ -471,7 +471,7 @@ async def custom_strat_pairs(
 
     await query.edit_message_text(
         f"✅ Pair types: *{choice}*\n\n"
-        f"*Step 2 of 6* — Enter the *minimum pool TVL* in USD\\.\n"
+        f"*Step 2 of 6:* Enter the *minimum pool TVL* in USD\\.\n"
         f"Pools with TVL below this are excluded from scoring\\.\n\n"
         f"Typical values: `50000` \\(\\$50k\\), `100000` \\(\\$100k\\)\n\n"
         f"Type /cancel to exit\\.",
@@ -505,7 +505,7 @@ async def custom_strat_min_tvl(
     from helpers.formatters import escape_md
     await update.message.reply_text(
         f"✅ Min TVL: *\\${escape_md(f'{min_tvl:,.0f}')}*\n\n"
-        f"*Step 3 of 6* — Enter the *maximum slippage* you accept \\(as a %\\)\\.\n"
+        f"*Step 3 of 6:* Enter the *maximum slippage* you accept \\(as a %\\)\\.\n"
         f"Swaps that would cause more slippage are rejected\\.\n\n"
         f"Typical values: `0.5` \\(0\\.5%\\), `1` \\(1%\\), `2` \\(2%\\)\n"
         f"Allowed range: 0\\.1% – 5%\n\n"
@@ -540,7 +540,7 @@ async def custom_strat_slippage(
     from helpers.formatters import escape_md
     await update.message.reply_text(
         f"✅ Max slippage: *{escape_md(f'{slippage_pct:.1f}')}%*\n\n"
-        f"*Step 4 of 6* — Enter the *rebalance threshold*\\.\n"
+        f"*Step 4 of 6:* Enter the *rebalance threshold*\\.\n"
         f"This is the minimum score gap between the current pool and the best "
         f"alternative before the bot triggers a rebalance\\.\n\n"
         f"Typical values: `0.10` \\(aggressive\\), `0.15` \\(balanced\\), `0.20` \\(conservative\\)\n"
@@ -577,7 +577,7 @@ async def custom_strat_rebal(
     from helpers.formatters import escape_md
     await update.message.reply_text(
         f"✅ Rebalance threshold: *{escape_md(str(threshold))}*\n\n"
-        f"*Step 5 of 6* — Choose your *compound interval*\\.\n"
+        f"*Step 5 of 6:* Choose your *compound interval*\\.\n"
         f"The bot will collect and reinvest fees at this frequency\\.\n"
         f"Select *Disabled* to compound manually\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
@@ -620,7 +620,7 @@ async def custom_strat_compound(
     from helpers.formatters import escape_md
     await query.edit_message_text(
         f"✅ Compound interval: *{escape_md(interval_label)}*\n\n"
-        f"*Step 6 of 6* — Choose your *execution mode*\\.\n\n"
+        f"*Step 6 of 6:* Choose your *execution mode*\\.\n\n"
         f"• *Auto\\-execute*: the bot acts immediately when a decision is made\\.\n"
         f"• *Confirm*: the bot sends a proposal and waits for your tap to proceed\\.",
         parse_mode=ParseMode.MARKDOWN_V2,

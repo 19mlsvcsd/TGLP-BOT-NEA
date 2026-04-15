@@ -4,7 +4,7 @@ tests/test_portfolio.py
 Unit tests for core/portfolio.py.
 
 Covers position valuation, P&L calculation, and session-state accumulators.
-No network access required — build_portfolio_summary is tested with a mock
+No network access required; build_portfolio_summary is tested with a mock
 w3 object so no RPC calls are made.
 
 Run with:
@@ -68,7 +68,7 @@ def test_stablecoin_prices_at_one():
     for sym in ("usdt", "USDT", "usdc", "USDC", "busd", "BUSD", "dai", "DAI"):
         val = _token_usd_value(100.0, sym, bnb_price)
         assert val == 100.0, f"{sym}: expected $100.00, got ${val}"
-    print("[PASS] _token_usd_value — all stablecoins price at $1")
+    print("[PASS] _token_usd_value: all stablecoins price at $1")
 
 
 def test_wbnb_priced_at_bnb_rate():
@@ -77,7 +77,7 @@ def test_wbnb_priced_at_bnb_rate():
     for sym in ("WBNB", "wbnb", "BNB", "bnb"):
         val = _token_usd_value(2.0, sym, bnb_price)
         assert val == 1200.0, f"{sym}: expected $1200.00, got ${val}"
-    print("[PASS] _token_usd_value — WBNB/BNB priced at BNB rate")
+    print("[PASS] _token_usd_value: WBNB/BNB priced at BNB rate")
 
 
 def test_unknown_token_prices_at_zero():
@@ -86,7 +86,7 @@ def test_unknown_token_prices_at_zero():
     assert val == 0.0
     val2 = _token_usd_value(50.0, "MBOX", 600.0)
     assert val2 == 0.0
-    print("[PASS] _token_usd_value — unknown tokens price at $0")
+    print("[PASS] _token_usd_value: unknown tokens price at $0")
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ def test_position_value_stablecoin_pair():
     assert pv.value_usd == 800.0
     assert pv.token0_symbol == "USDT"
     assert pv.token1_symbol == "USDC"
-    print("[PASS] estimate_position_value — USDT+USDC = sum of amounts")
+    print("[PASS] estimate_position_value: USDT+USDC = sum of amounts")
 
 
 def test_position_value_stable_wbnb_pair():
@@ -108,7 +108,7 @@ def test_position_value_stable_wbnb_pair():
     pos = _position(sym0="USDT", sym1="WBNB", amt0=500.0, amt1=1.0)
     pv = estimate_position_value(pos, bnb_price_usd=600.0)
     assert pv.value_usd == 1100.0
-    print("[PASS] estimate_position_value — USDT+WBNB = $1100 at $600/BNB")
+    print("[PASS] estimate_position_value: USDT+WBNB = $1100 at $600/BNB")
 
 
 def test_position_value_unknown_tokens_zero():
@@ -116,7 +116,7 @@ def test_position_value_unknown_tokens_zero():
     pos = _position(sym0="CAKE", sym1="MBOX", amt0=100.0, amt1=100.0)
     pv = estimate_position_value(pos, bnb_price_usd=600.0)
     assert pv.value_usd == 0.0
-    print("[PASS] estimate_position_value — unknown tokens value at $0")
+    print("[PASS] estimate_position_value: unknown tokens value at $0")
 
 
 def test_position_value_bnb_conversion():
@@ -125,7 +125,7 @@ def test_position_value_bnb_conversion():
     pv = estimate_position_value(pos, bnb_price_usd=600.0)
     assert pv.value_usd == 1200.0
     assert abs(pv.value_bnb - 2.0) < 0.001
-    print("[PASS] estimate_position_value — value_bnb = value_usd / bnb_price")
+    print("[PASS] estimate_position_value: value_bnb = value_usd / bnb_price")
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ def test_pnl_profit():
     assert pnl.unrealised_pnl_pct == 20.0
     assert pnl.gas_cost_usd == 6.0   # 0.01 BNB × $600
     assert pnl.net_pnl_usd == 194.0  # $200 - $6
-    print("[PASS] calculate_pnl — profit scenario correct")
+    print("[PASS] calculate_pnl: profit scenario correct")
 
 
 def test_pnl_loss():
@@ -149,7 +149,7 @@ def test_pnl_loss():
     pnl = calculate_pnl(session, current_value_usd=800.0, bnb_price_usd=600.0)
     assert pnl.unrealised_pnl_usd == -200.0
     assert pnl.unrealised_pnl_pct == -20.0
-    print("[PASS] calculate_pnl — loss scenario correct")
+    print("[PASS] calculate_pnl: loss scenario correct")
 
 
 def test_pnl_zero_entry_no_division_error():
@@ -157,7 +157,7 @@ def test_pnl_zero_entry_no_division_error():
     session = _session(entry_usd=0.0, gas_bnb=0.0)
     pnl = calculate_pnl(session, current_value_usd=0.0, bnb_price_usd=600.0)
     assert pnl.unrealised_pnl_pct == 0.0
-    print("[PASS] calculate_pnl — zero entry does not raise division error")
+    print("[PASS] calculate_pnl: zero entry does not raise division error")
 
 
 def test_pnl_rebalance_count_included():
@@ -165,7 +165,7 @@ def test_pnl_rebalance_count_included():
     session = _session(entry_usd=1000.0, rebalance=3)
     pnl = calculate_pnl(session, current_value_usd=1000.0, bnb_price_usd=600.0)
     assert pnl.rebalance_count == 3
-    print("[PASS] calculate_pnl — rebalance_count passed through correctly")
+    print("[PASS] calculate_pnl: rebalance_count passed through correctly")
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +177,7 @@ def test_record_entry_value_sets_session():
     session = _session(entry_usd=0.0)
     record_entry_value(session, 1500.0)
     assert session.entry_value_usd == 1500.0
-    print("[PASS] record_entry_value — updates session.entry_value_usd")
+    print("[PASS] record_entry_value: updates session.entry_value_usd")
 
 
 def test_record_entry_value_overwrites():
@@ -185,7 +185,7 @@ def test_record_entry_value_overwrites():
     session = _session(entry_usd=1000.0)
     record_entry_value(session, 2000.0)
     assert session.entry_value_usd == 2000.0
-    print("[PASS] record_entry_value — overwrites previous entry value")
+    print("[PASS] record_entry_value: overwrites previous entry value")
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +198,7 @@ def test_record_gas_cost_accumulates():
     record_gas_cost(session, 0.001)
     record_gas_cost(session, 0.002)
     assert abs(session.total_gas_spent_bnb - 0.003) < 1e-9
-    print("[PASS] record_gas_cost — gas costs accumulate correctly")
+    print("[PASS] record_gas_cost: gas costs accumulate correctly")
 
 
 def test_record_gas_cost_starts_from_existing():
@@ -206,7 +206,7 @@ def test_record_gas_cost_starts_from_existing():
     session = _session(gas_bnb=0.005)
     record_gas_cost(session, 0.001)
     assert abs(session.total_gas_spent_bnb - 0.006) < 1e-9
-    print("[PASS] record_gas_cost — adds to pre-existing gas total")
+    print("[PASS] record_gas_cost: adds to pre-existing gas total")
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ def test_portfolio_summary_no_position_structure():
     finally:
         port_mod.get_bnb_balance = original_fn
 
-    print("[PASS] build_portfolio_summary — no position: has_position=False, wallet_bnb correct")
+    print("[PASS] build_portfolio_summary: no position: has_position=False, wallet_bnb correct")
 
 
 # ===========================================================================

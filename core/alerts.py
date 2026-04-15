@@ -8,7 +8,7 @@ analysis step. This module iterates over session.watchlist, looks up each
 item's current metric in the MarketSnapshot, and returns a list of Alert
 objects for any thresholds that have been crossed.
 
-Alerts are informational — they do not execute transactions. The dispatcher
+Alerts are informational; they do not execute transactions. The dispatcher
 sends a Telegram notification for each triggered alert.
 
 Supported threshold types:
@@ -158,7 +158,7 @@ def check_pool_alerts(
     stays on the watchlist and will fire when the pool reappears.
 
     Args:
-        session:  UserSession — session.watchlist is read but not modified.
+        session:  UserSession, session.watchlist is read but not modified.
         snapshot: Current MarketSnapshot from get_market_snapshot().
 
     Returns:
@@ -206,7 +206,7 @@ def check_price_alerts(
     the next cycle has a fresh baseline.
 
     Args:
-        session: UserSession — session.watchlist is read; session.previous_bnb_price
+        session: UserSession, session.watchlist is read; session.previous_bnb_price
                  is both read and updated.
         prices:  Current token prices dict, e.g. {"BNB": 614.82}.
 
@@ -281,8 +281,8 @@ def check_all_alerts(
     Run all supported alert checks for a session.
 
     Checks:
-      1. Pool-based alerts — APR above/below and TVL below thresholds.
-      2. Token price-change alerts — BNB price movement ≥ threshold %.
+      1. Pool-based alerts: APR above/below and TVL below thresholds.
+      2. Token price-change alerts: BNB price movement >= threshold %.
 
     Args:
         session:  UserSession.

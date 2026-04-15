@@ -1,4 +1,4 @@
-# Environment variables — contains sensitive keys, never commit
+# Environment variables: contains sensitive keys, never commit
 .env
 
 # Python bytecode
@@ -13,7 +13,7 @@ env/
 .venv/
 .env/
 
-# SQLite database files — generated at runtime
+# SQLite database files, generated at runtime
 *.db
 *.sqlite
 *.sqlite3

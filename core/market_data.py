@@ -6,16 +6,16 @@ Market data fetching, classification, and snapshot assembly for TGLP Bot.
 This module is the single source of external data for the rest of the system.
 It combines two data sources:
 
-1. **DeFiLlama Yields API** — returns APR, TVL, and 24h volume for all pools
+1. **DeFiLlama Yields API**: returns APR, TVL, and 24h volume for all pools
    across all chains and protocols. We filter for PancakeSwap V3 on BSC.
 
-2. **Binance Public Price API** — returns current spot prices for BNB, ETH,
+2. **Binance Public Price API**: returns current spot prices for BNB, ETH,
    BTC, and CAKE. Used to convert gas costs to USD and for P&L calculations.
 
-3. **On-chain pool contract calls** — reads slot0 (current price/tick) and
+3. **On-chain pool contract calls**: reads slot0 (current price/tick) and
    liquidity directly from individual pool contracts on BSC Testnet RPC.
 
-Important caveat — testnet vs. mainnet data:
+Important caveat (testnet vs. mainnet data):
     DeFiLlama and Binance return MAINNET data. For this testnet development
     project, we use mainnet pool data for discovery and scoring, then execute
     transactions on BSC Testnet. This is a known and documented limitation.
@@ -56,7 +56,7 @@ _REQUEST_TIMEOUT: int = 10
 #
 # Verified against the live API (2026-04-14): DeFiLlama tracks BSC PancakeSwap
 # pools under "pancakeswap-amm" (38 pools). The "pancakeswap-amm-v3" slug exists
-# but covers only Base and Ethereum — no BSC V3 pools are listed under it.
+# but covers only Base and Ethereum; no BSC V3 pools are listed under it.
 # This is a known DeFiLlama data gap for PancakeSwap V3 on BSC mainnet.
 #
 # For this project we accept all PancakeSwap AMM pools on BSC for discovery
@@ -105,7 +105,7 @@ class PoolData:
     fee_tier: int
     pair_type: str
 
-    # On-chain data — populated by fetch_on_chain_pool_data()
+    # On-chain data, populated by fetch_on_chain_pool_data()
     sqrt_price_x96: Optional[int] = None
     current_tick: Optional[int] = None
     on_chain_liquidity: Optional[int] = None
@@ -132,7 +132,7 @@ class MarketSnapshot:
         fetch_time:    Unix timestamp when the snapshot was assembled.
         pool_count:    Number of pools in this snapshot (convenience field).
         api_warnings:  List of non-fatal issues encountered during fetch
-                       (e.g., "Binance price fetch failed — using cached values").
+                       (e.g., "Binance price fetch failed, using cached values").
     """
     pools: List[PoolData]
     prices: Dict[str, float]
@@ -207,7 +207,7 @@ def fetch_defi_llama_pools() -> List[Dict[str, Any]]:
             all_pools = response.json().get("data", [])
 
             # Filter for PancakeSwap AMM pools on BSC.
-            # Both "pancakeswap-amm" and "pancakeswap-amm-v3" are accepted —
+            # Both "pancakeswap-amm" and "pancakeswap-amm-v3" are accepted;
             # see _DEFILLAMA_PROJECTS comment for explanation of the data gap.
             filtered = [
                 p for p in all_pools
@@ -232,7 +232,7 @@ def fetch_defi_llama_pools() -> List[Dict[str, Any]]:
         if attempt < API_RETRY_COUNT:
             time.sleep(1)  # Brief pause before retry.
 
-    logger.error("DeFiLlama fetch failed after %d attempts — returning empty list", API_RETRY_COUNT + 1)
+    logger.error("DeFiLlama fetch failed after %d attempts, returning empty list", API_RETRY_COUNT + 1)
     return []
 
 
@@ -289,7 +289,7 @@ def fetch_token_prices() -> Dict[str, float]:
         if attempt < API_RETRY_COUNT:
             time.sleep(1)
 
-    logger.error("Binance price fetch failed after %d attempts — using stablecoin defaults", API_RETRY_COUNT + 1)
+    logger.error("Binance price fetch failed after %d attempts, using stablecoin defaults", API_RETRY_COUNT + 1)
     # Return stablecoin prices as a safe minimum fallback so gas estimates
     # still work even if Binance is unreachable.
     return {"USDT": 1.0, "USDC": 1.0, "BUSD": 1.0, "BNB": 0.0}
@@ -348,7 +348,7 @@ def fetch_on_chain_pool_data(
             pool_address[:10], result["tick"], result["liquidity"], result["fee"],
         )
     except Exception as e:
-        # On-chain call failures are non-fatal — the pool still appears in the
+        # On-chain call failures are non-fatal; the pool still appears in the
         # snapshot from API data; it just won't have live price/tick data.
         logger.warning("On-chain call failed for pool %s: %s", pool_address[:10], e)
 
@@ -437,7 +437,7 @@ def _is_pool_valid(raw: Dict[str, Any]) -> tuple[bool, str]:
     if tvl <= 0:
         return False, f"TVL is zero or negative ({tvl})"
 
-    # APR fields may be None (no farming on this pool) — treat None as 0.
+    # APR fields may be None (no farming on this pool), treat None as 0.
     apr_base = raw.get("apyBase") or 0
     apr_reward = raw.get("apyReward") or 0
     if apr_base < 0 or apr_reward < 0:
@@ -570,10 +570,10 @@ def get_market_snapshot(
         w3:              Web3 instance for on-chain enrichment.
         force_refresh:   Bypass the cache and fetch fresh data.
         enrich_on_chain: Enrich each pool with on-chain slot0/liquidity data.
-                         Adds ~0.1s per pool — use only for /explore, not cycles.
+                         Adds ~0.1s per pool; use only for /explore, not cycles.
 
     Returns:
-        A MarketSnapshot. Never raises — always returns something usable.
+        A MarketSnapshot. Never raises; always returns something usable.
     """
     global _cached_snapshot, _cache_timestamp
 
@@ -593,12 +593,12 @@ def get_market_snapshot(
     # ── Step 1: Fetch DeFiLlama pool data ────────────────────────────────
     raw_pools = fetch_defi_llama_pools()
     if not raw_pools:
-        warnings.append("DeFiLlama fetch returned no pools — snapshot may be empty.")
+        warnings.append("DeFiLlama fetch returned no pools; snapshot may be empty.")
 
     # ── Step 2: Fetch token prices ────────────────────────────────────────
     prices = fetch_token_prices()
     if not prices or prices.get("BNB", 0) == 0:
-        warnings.append("Binance price fetch failed — BNB price unavailable.")
+        warnings.append("Binance price fetch failed, BNB price unavailable.")
 
     # ── Step 3: Build validated pool list ────────────────────────────────
     pools = build_pool_snapshot(

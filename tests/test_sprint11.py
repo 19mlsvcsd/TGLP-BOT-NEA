@@ -59,11 +59,11 @@ def test_app_has_lifecycle_hooks():
     from bot.app import _post_init, _post_shutdown
     assert inspect.iscoroutinefunction(_post_init), "_post_init must be async"
     assert inspect.iscoroutinefunction(_post_shutdown), "_post_shutdown must be async"
-    print("[PASS] bot/app.py — _post_init and _post_shutdown are async")
+    print("[PASS] bot/app.py: _post_init and _post_shutdown are async")
 
 
 # ===========================================================================
-# bot/conversations.py — /watch flow
+# bot/conversations.py: /watch flow
 # ===========================================================================
 
 def test_watch_handler_state_count():
@@ -104,7 +104,7 @@ def test_watch_threshold_type_keyboard():
         assert btn.callback_data.startswith("wt_"), (
             f"Button callback_data should start with 'wt_': {btn.callback_data}"
         )
-    print("[PASS] _threshold_type_keyboard() — 3 buttons with wt_ prefixes")
+    print("[PASS] _threshold_type_keyboard(): 3 buttons with wt_ prefixes")
 
 
 # ===========================================================================
@@ -118,7 +118,7 @@ def test_watchlist_keyboard_empty():
     buttons = [btn for row in kb.inline_keyboard for btn in row]
     assert len(buttons) == 1
     assert buttons[0].callback_data == "alert_noop"
-    print("[PASS] watchlist_keyboard([]) — single no-alerts label button")
+    print("[PASS] watchlist_keyboard([]): single no-alerts label button")
 
 
 def test_watchlist_keyboard_with_items():
@@ -133,7 +133,7 @@ def test_watchlist_keyboard_with_items():
     assert len(buttons) == 2
     assert buttons[0].callback_data == "alert_remove_1"
     assert buttons[1].callback_data == "alert_remove_2"
-    print("[PASS] watchlist_keyboard with items — one Remove button per item")
+    print("[PASS] watchlist_keyboard with items: one Remove button per item")
 
 
 def test_pool_list_keyboard_structure():
@@ -143,17 +143,17 @@ def test_pool_list_keyboard_structure():
         {"symbol": "USDT-WBNB", "pool": "0x" + "a" * 40},
         {"symbol": "CAKE-BNB",  "pool": "0x" + "b" * 40},
     ]
-    # Single page — no nav row.
+    # Single page, no nav row.
     kb = pool_list_keyboard(pools, page=0, total_pages=1)
     rows = kb.inline_keyboard
     # 2 pool buttons, no pagination row.
     assert len(rows) == 2, f"Expected 2 rows (no pagination), got {len(rows)}"
     assert rows[0][0].callback_data.startswith("pool_detail_")
-    print("[PASS] pool_list_keyboard — 2 pool rows, no nav for single page")
+    print("[PASS] pool_list_keyboard: 2 pool rows, no nav for single page")
 
 
 # ===========================================================================
-# bot/commands.py — page calculation
+# bot/commands.py: page calculation
 # ===========================================================================
 
 def test_history_page_calculation():
@@ -184,7 +184,7 @@ def test_explore_page_size_defined():
 
 
 # ===========================================================================
-# helpers/formatters.py — used heavily in Sprint 11
+# helpers/formatters.py: used heavily in Sprint 11
 # ===========================================================================
 
 def test_format_usd():
@@ -193,7 +193,7 @@ def test_format_usd():
     assert format_usd(0.0)       == "$0.00"
     assert format_usd(1234.56)   == "$1,234.56"
     assert format_usd(1_000_000) == "$1,000,000.00"
-    print("[PASS] format_usd — correct output for 0, 1234.56, 1M")
+    print("[PASS] format_usd: correct output for 0, 1234.56, 1M")
 
 
 def test_format_bnb():
@@ -201,7 +201,7 @@ def test_format_bnb():
     from helpers.formatters import format_bnb
     assert format_bnb(0.0)      == "0.0000 BNB"
     assert format_bnb(1.23456)  == "1.2346 BNB"
-    print("[PASS] format_bnb — 4 decimal places, BNB suffix")
+    print("[PASS] format_bnb: 4 decimal places, BNB suffix")
 
 
 def test_format_pct():
@@ -210,7 +210,7 @@ def test_format_pct():
     assert format_pct(5.25)  == "5.25%"
     assert format_pct(0.0)   == "0.00%"
     assert format_pct(100.0) == "100.00%"
-    print("[PASS] format_pct — correct percentage strings")
+    print("[PASS] format_pct: correct percentage strings")
 
 
 def test_format_large_usd():
@@ -220,7 +220,7 @@ def test_format_large_usd():
     assert format_large_usd(1_500)       == "$1.5K"
     assert format_large_usd(2_000_000)   == "$2.00M"
     assert format_large_usd(3_000_000_000) == "$3.00B"
-    print("[PASS] format_large_usd — K/M/B suffixes correct")
+    print("[PASS] format_large_usd: K/M/B suffixes correct")
 
 
 def test_escape_md_special_chars():
@@ -233,11 +233,11 @@ def test_escape_md_special_chars():
     assert r"\_" in escaped
     assert r"\(" in escaped
     assert r"\[" in escaped
-    print("[PASS] escape_md — special chars correctly escaped")
+    print("[PASS] escape_md: special chars correctly escaped")
 
 
 # ===========================================================================
-# core/watchlist.py — used by /alerts and /watch
+# core/watchlist.py: used by /alerts and /watch
 # ===========================================================================
 
 def test_watchlist_add_and_remove():
@@ -282,7 +282,7 @@ def test_watchlist_add_and_remove():
     finally:
         os.unlink(db_path)
 
-    print("[PASS] add_watch_item / remove_watch_item — add, verify, remove")
+    print("[PASS] add_watch_item / remove_watch_item: add, verify, remove")
 
 
 # ===========================================================================

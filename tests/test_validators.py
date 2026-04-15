@@ -34,51 +34,51 @@ from helpers.validators import (
 def test_private_key_valid_64_hex():
     ok, msg = validate_private_key("a" * 64)
     assert ok is True and msg == ""
-    print("[PASS] validate_private_key — 64-char hex accepted")
+    print("[PASS] validate_private_key: 64-char hex accepted")
 
 
 def test_private_key_valid_0x_prefix():
     ok, msg = validate_private_key("0x" + "b" * 64)
     assert ok is True and msg == ""
-    print("[PASS] validate_private_key — 0x-prefixed 66-char accepted")
+    print("[PASS] validate_private_key: 0x-prefixed 66-char accepted")
 
 
 def test_private_key_valid_uppercase_hex():
     ok, msg = validate_private_key("A" * 64)
     assert ok is True and msg == ""
-    print("[PASS] validate_private_key — uppercase hex accepted")
+    print("[PASS] validate_private_key: uppercase hex accepted")
 
 
 def test_private_key_too_short():
     ok, msg = validate_private_key("a" * 32)
     assert ok is False
     assert "64 hex" in msg
-    print("[PASS] validate_private_key — 32-char key rejected")
+    print("[PASS] validate_private_key: 32-char key rejected")
 
 
 def test_private_key_too_long():
     ok, msg = validate_private_key("a" * 65)
     assert ok is False
-    print("[PASS] validate_private_key — 65-char key rejected")
+    print("[PASS] validate_private_key: 65-char key rejected")
 
 
 def test_private_key_invalid_chars():
     ok, msg = validate_private_key("g" * 64)  # 'g' is not hex
     assert ok is False
     assert "invalid characters" in msg
-    print("[PASS] validate_private_key — non-hex chars rejected")
+    print("[PASS] validate_private_key: non-hex chars rejected")
 
 
 def test_private_key_empty():
     ok, msg = validate_private_key("")
     assert ok is False
-    print("[PASS] validate_private_key — empty string rejected")
+    print("[PASS] validate_private_key: empty string rejected")
 
 
 def test_private_key_not_string():
     ok, msg = validate_private_key(12345)
     assert ok is False
-    print("[PASS] validate_private_key — non-string rejected")
+    print("[PASS] validate_private_key: non-string rejected")
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def test_address_valid_checksummed():
     addr = "0x6725F303b657a9451d8BA641348b6761A6CC7a17"
     ok, msg = validate_ethereum_address(addr)
     assert ok is True and msg == ""
-    print("[PASS] validate_ethereum_address — valid checksummed address accepted")
+    print("[PASS] validate_ethereum_address: valid checksummed address accepted")
 
 
 def test_address_valid_lowercase():
@@ -98,33 +98,33 @@ def test_address_valid_lowercase():
     addr = "0x" + "a" * 40
     ok, msg = validate_ethereum_address(addr)
     assert ok is True and msg == ""
-    print("[PASS] validate_ethereum_address — valid lowercase address accepted")
+    print("[PASS] validate_ethereum_address: valid lowercase address accepted")
 
 
 def test_address_missing_0x():
     ok, msg = validate_ethereum_address("ab" * 20)
     assert ok is False
     assert "0x" in msg
-    print("[PASS] validate_ethereum_address — missing 0x rejected")
+    print("[PASS] validate_ethereum_address: missing 0x rejected")
 
 
 def test_address_too_short():
     ok, msg = validate_ethereum_address("0x" + "a" * 20)
     assert ok is False
     assert "42 characters" in msg
-    print("[PASS] validate_ethereum_address — 22-char address rejected")
+    print("[PASS] validate_ethereum_address: 22-char address rejected")
 
 
 def test_address_invalid_chars():
     ok, msg = validate_ethereum_address("0x" + "g" * 40)
     assert ok is False
-    print("[PASS] validate_ethereum_address — non-hex chars rejected")
+    print("[PASS] validate_ethereum_address: non-hex chars rejected")
 
 
 def test_address_not_string():
     ok, msg = validate_ethereum_address(None)
     assert ok is False
-    print("[PASS] validate_ethereum_address — non-string rejected")
+    print("[PASS] validate_ethereum_address: non-string rejected")
 
 
 # ---------------------------------------------------------------------------
@@ -134,40 +134,40 @@ def test_address_not_string():
 def test_positive_amount_integer():
     ok, msg = validate_positive_amount("100")
     assert ok is True and msg == ""
-    print("[PASS] validate_positive_amount — integer '100' accepted")
+    print("[PASS] validate_positive_amount: integer '100' accepted")
 
 
 def test_positive_amount_decimal():
     ok, msg = validate_positive_amount("0.5")
     assert ok is True and msg == ""
-    print("[PASS] validate_positive_amount — decimal '0.5' accepted")
+    print("[PASS] validate_positive_amount: decimal '0.5' accepted")
 
 
 def test_positive_amount_zero():
     ok, msg = validate_positive_amount("0")
     assert ok is False
     assert "greater than zero" in msg
-    print("[PASS] validate_positive_amount — zero rejected")
+    print("[PASS] validate_positive_amount: zero rejected")
 
 
 def test_positive_amount_negative():
     ok, msg = validate_positive_amount("-1")
     assert ok is False
-    print("[PASS] validate_positive_amount — negative rejected")
+    print("[PASS] validate_positive_amount: negative rejected")
 
 
 def test_positive_amount_non_numeric():
     ok, msg = validate_positive_amount("abc")
     assert ok is False
     assert "not a valid number" in msg
-    print("[PASS] validate_positive_amount — non-numeric string rejected")
+    print("[PASS] validate_positive_amount: non-numeric string rejected")
 
 
 def test_positive_amount_whitespace():
     # Leading/trailing whitespace is accepted (stripped internally).
     ok, msg = validate_positive_amount("  1.5  ")
     assert ok is True and msg == ""
-    print("[PASS] validate_positive_amount — whitespace-padded value accepted")
+    print("[PASS] validate_positive_amount: whitespace-padded value accepted")
 
 
 # ---------------------------------------------------------------------------
@@ -177,39 +177,39 @@ def test_positive_amount_whitespace():
 def test_slippage_valid_midrange():
     ok, msg = validate_slippage("0.5")
     assert ok is True and msg == ""
-    print("[PASS] validate_slippage — 0.5% accepted")
+    print("[PASS] validate_slippage: 0.5% accepted")
 
 
 def test_slippage_valid_minimum():
     ok, msg = validate_slippage("0.1")
     assert ok is True and msg == ""
-    print("[PASS] validate_slippage — 0.1% boundary accepted")
+    print("[PASS] validate_slippage: 0.1% boundary accepted")
 
 
 def test_slippage_valid_maximum():
     ok, msg = validate_slippage("5.0")
     assert ok is True and msg == ""
-    print("[PASS] validate_slippage — 5.0% boundary accepted")
+    print("[PASS] validate_slippage: 5.0% boundary accepted")
 
 
 def test_slippage_too_low():
     ok, msg = validate_slippage("0.05")
     assert ok is False
     assert "too low" in msg
-    print("[PASS] validate_slippage — 0.05% rejected as too low")
+    print("[PASS] validate_slippage: 0.05% rejected as too low")
 
 
 def test_slippage_too_high():
     ok, msg = validate_slippage("6.0")
     assert ok is False
     assert "too high" in msg
-    print("[PASS] validate_slippage — 6.0% rejected as too high")
+    print("[PASS] validate_slippage: 6.0% rejected as too high")
 
 
 def test_slippage_non_numeric():
     ok, msg = validate_slippage("half")
     assert ok is False
-    print("[PASS] validate_slippage — non-numeric string rejected")
+    print("[PASS] validate_slippage: non-numeric string rejected")
 
 
 # ---------------------------------------------------------------------------
@@ -219,26 +219,26 @@ def test_slippage_non_numeric():
 def test_tvl_valid():
     ok, msg = validate_tvl_threshold("100000")
     assert ok is True and msg == ""
-    print("[PASS] validate_tvl_threshold — $100,000 accepted")
+    print("[PASS] validate_tvl_threshold: $100,000 accepted")
 
 
 def test_tvl_minimum_boundary():
     ok, msg = validate_tvl_threshold("1000")
     assert ok is True and msg == ""
-    print("[PASS] validate_tvl_threshold — $1,000 boundary accepted")
+    print("[PASS] validate_tvl_threshold: $1,000 boundary accepted")
 
 
 def test_tvl_too_low():
     ok, msg = validate_tvl_threshold("500")
     assert ok is False
     assert "too low" in msg
-    print("[PASS] validate_tvl_threshold — $500 rejected as too low")
+    print("[PASS] validate_tvl_threshold: $500 rejected as too low")
 
 
 def test_tvl_zero():
     ok, msg = validate_tvl_threshold("0")
     assert ok is False
-    print("[PASS] validate_tvl_threshold — zero rejected")
+    print("[PASS] validate_tvl_threshold: zero rejected")
 
 
 # ---------------------------------------------------------------------------
@@ -248,28 +248,28 @@ def test_tvl_zero():
 def test_apr_valid():
     ok, msg = validate_apr_threshold("5.0")
     assert ok is True and msg == ""
-    print("[PASS] validate_apr_threshold — 5.0% accepted")
+    print("[PASS] validate_apr_threshold: 5.0% accepted")
 
 
 def test_apr_zero():
     # Zero APR threshold is valid (alert when APR drops to 0).
     ok, msg = validate_apr_threshold("0")
     assert ok is True and msg == ""
-    print("[PASS] validate_apr_threshold — 0% accepted")
+    print("[PASS] validate_apr_threshold: 0% accepted")
 
 
 def test_apr_negative():
     ok, msg = validate_apr_threshold("-1")
     assert ok is False
     assert "negative" in msg
-    print("[PASS] validate_apr_threshold — negative rejected")
+    print("[PASS] validate_apr_threshold: negative rejected")
 
 
 def test_apr_absurdly_high():
     ok, msg = validate_apr_threshold("99999")
     assert ok is False
     assert "high" in msg
-    print("[PASS] validate_apr_threshold — 99,999% rejected")
+    print("[PASS] validate_apr_threshold: 99,999% rejected")
 
 
 # ---------------------------------------------------------------------------
@@ -279,13 +279,13 @@ def test_apr_absurdly_high():
 def test_normalise_key_strips_prefix():
     result = normalise_private_key("0x" + "A" * 64)
     assert result == "a" * 64
-    print("[PASS] normalise_private_key — strips 0x and lowercases")
+    print("[PASS] normalise_private_key: strips 0x and lowercases")
 
 
 def test_normalise_key_no_prefix():
     result = normalise_private_key("B" * 64)
     assert result == "b" * 64
-    print("[PASS] normalise_private_key — lowercases unprefixed key")
+    print("[PASS] normalise_private_key: lowercases unprefixed key")
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +297,7 @@ def test_normalise_address_returns_checksum():
     result = normalise_address(lowercase)
     assert result.startswith("0x")
     assert len(result) == 42
-    print("[PASS] normalise_address — returns checksummed address")
+    print("[PASS] normalise_address: returns checksummed address")
 
 
 # ===========================================================================

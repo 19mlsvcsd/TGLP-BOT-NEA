@@ -17,7 +17,7 @@ a human-readable reasoning string that is shown to the user.
 Processing pipeline:
     pools → filter_pools_by_strategy() → score_pools() → make_decision()
 
-Design: purely functional — no state, no side effects. The dispatcher calls
+Design: purely functional, no state, no side effects. The dispatcher calls
 this module and then passes the result to executor.py if action is needed.
 """
 
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 # Gas estimation reference price
 # ---------------------------------------------------------------------------
 # Used for pre-execution gas cost estimates displayed to the user.
-# Conservative BSC mainnet figure — actual testnet cost will be lower.
+# Conservative BSC mainnet figure; actual testnet cost will be lower.
 # Stored in Gwei: 1 Gwei = 10^-9 BNB, so cost_bnb = units * price_wei / 10^18.
 _GAS_PRICE_REFERENCE_GWEI: float = 5.0
 
@@ -162,7 +162,7 @@ def filter_pools_by_strategy(
     Args:
         pools:           Full pool list from MarketSnapshot.
         strategy:        The user's active StrategyConfig.
-        analysis_result: Optional — provides the anomalous address set.
+        analysis_result: Optional, provides the anomalous address set.
                          If None (first run), no anomaly filtering is applied.
 
     Returns:
@@ -181,7 +181,7 @@ def filter_pools_by_strategy(
         # Filter 1: pair type
         if pool.pair_type not in strategy.allowed_pair_types:
             logger.debug(
-                "Filter: %s excluded — pair type '%s' not in %s",
+                "Filter: %s excluded, pair type '%s' not in %s",
                 pool.symbol, pool.pair_type, strategy.allowed_pair_types,
             )
             continue
@@ -189,14 +189,14 @@ def filter_pools_by_strategy(
         # Filter 2: minimum TVL
         if pool.tvl_usd < strategy.min_tvl_usd:
             logger.debug(
-                "Filter: %s excluded — TVL $%.0f < min $%.0f",
+                "Filter: %s excluded, TVL $%.0f < min $%.0f",
                 pool.symbol, pool.tvl_usd, strategy.min_tvl_usd,
             )
             continue
 
         # Filter 3: anomaly exclusion
         if pool.pool in anomalous:
-            logger.debug("Filter: %s excluded — anomalous pool", pool.symbol)
+            logger.debug("Filter: %s excluded, anomalous pool", pool.symbol)
             continue
 
         result.append(pool)
@@ -357,7 +357,7 @@ def make_decision(
     5. NO_ACTION: none of the above conditions met.
 
     Args:
-        scored_pools:        Output of score_pools() — sorted best first.
+        scored_pools:        Output of score_pools(), sorted best first.
         current_position:    UserSession.current_position dict, or None.
         strategy:            The user's active StrategyConfig.
         analysis_result:     AnalysisResult from this cycle (may be None on first run).
@@ -481,7 +481,7 @@ def make_decision(
     ]
     if not rebalance_needed:
         reason_parts.append(
-            f"Top pool {top.pool.symbol} scores {top.score:.3f} — "
+            f"Top pool {top.pool.symbol} scores {top.score:.3f}; "
             f"gap {score_gap:.3f} is below rebalance threshold {strategy.rebalance_threshold:.0%}."
         )
     if not compound_enabled:

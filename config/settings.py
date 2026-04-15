@@ -5,7 +5,7 @@ Central configuration file for TGLP Bot.
 
 All constants, contract addresses, strategy profile definitions, scoring
 weights, anomaly thresholds, and token lists live here. No magic numbers
-should appear anywhere else in the codebase — import from this module instead.
+should appear anywhere else in the codebase; import from this module instead.
 
 Role in the system: every other module imports from settings.py. Changing a
 value here propagates throughout the entire bot without touching business logic.
@@ -23,11 +23,11 @@ from typing import List
 # environment variable if set in .env.
 BSC_TESTNET_RPC_URL: str = "https://data-seed-prebsc-1-s1.binance.org:8545/"
 
-# BSC Testnet chain ID — used to validate the connected network and to sign
+# BSC Testnet chain ID, used to validate the connected network and to sign
 # transactions so they are rejected on mainnet if accidentally broadcast there.
 BSC_TESTNET_CHAIN_ID: int = 97
 
-# BSCScan Testnet explorer base URL — used to build clickable tx hash links.
+# BSCScan Testnet explorer base URL, used to build clickable tx hash links.
 BSCSCAN_TESTNET_URL: str = "https://testnet.bscscan.com/tx/"
 
 # Maximum number of seconds to wait for a transaction to be mined before
@@ -39,7 +39,7 @@ TX_RECEIPT_TIMEOUT: int = 120
 # PancakeSwap V3 contract addresses (BSC Testnet)
 # ---------------------------------------------------------------------------
 # These are the official PancakeSwap V3 deployments on BSC Testnet.
-# Mainnet addresses are documented here for reference only — the bot always
+# Mainnet addresses are documented here for reference only; the bot always
 # connects to testnet.
 
 PANCAKE_V3_FACTORY: str = "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
@@ -94,7 +94,7 @@ CYCLE_TIMEOUT_WARNING_SECONDS: int = 10
 # ---------------------------------------------------------------------------
 
 # Default slippage tolerance (as a fraction, not a percentage).
-# 0.005 = 0.5% — the maximum acceptable price deviation from the quoted amount.
+# 0.005 = 0.5%, the maximum acceptable price deviation from the quoted amount.
 DEFAULT_SLIPPAGE: float = 0.005
 
 # Deadline offset in seconds added to the current timestamp when building
@@ -115,7 +115,7 @@ MIN_BNB_FOR_GAS: float = 0.005  # BNB
 # BSC Testnet gas prices are typically very low; this acts as a sanity check.
 GAS_PRICE_WARNING_GWEI: float = 10.0
 
-# Hard ceiling on gas price — execution is blocked above this level.
+# Hard ceiling on gas price; execution is blocked above this level.
 # Set to twice the warning threshold as a conservative hard stop.
 MAX_GAS_PRICE_GWEI: float = 20.0
 
@@ -140,7 +140,7 @@ GAS_LIMIT_COLLECT: int = 200_000
 # Market data & API configuration
 # ---------------------------------------------------------------------------
 
-# DeFiLlama yields API endpoint — returns pool data including APR and TVL.
+# DeFiLlama yields API endpoint, returns pool data including APR and TVL.
 # Note: this returns mainnet data. For testnet development, we use this data
 # for pool discovery and scoring, then execute on testnet. Documented limitation.
 DEFI_LLAMA_POOLS_URL: str = "https://yields.llama.fi/pools"
@@ -165,15 +165,15 @@ API_RETRY_COUNT: int = 1
 # Anomalous pools are excluded from scoring to avoid acting on bad data.
 
 # APR increase above this fraction from one cycle to the next is flagged.
-# 0.5 = 50% increase — e.g., APR jumping from 10% to 15% in one cycle.
+# 0.5 = 50% increase, e.g., APR jumping from 10% to 15% in one cycle.
 ANOMALY_APR_SPIKE_THRESHOLD: float = 0.50
 
 # TVL decrease below this fraction triggers an anomaly flag.
-# 0.30 = 30% drop — a pool losing a third of its TVL in one cycle is suspicious.
+# 0.30 = 30% drop, meaning a pool losing a third of its TVL in one cycle is suspicious.
 ANOMALY_TVL_DROP_THRESHOLD: float = 0.30
 
 # Price deviation above this fraction from one cycle is flagged.
-# 0.10 = 10% — a 10% price move in 15 seconds is almost certainly bad data.
+# 0.10 = 10%, meaning a 10% price move in 15 seconds is almost certainly bad data.
 ANOMALY_PRICE_DEVIATION_THRESHOLD: float = 0.10
 
 
@@ -222,7 +222,7 @@ class StrategyConfig:
     auto_execute: bool
 
 
-# Conservative Yield — minimises risk by staying in stablecoin pairs only.
+# Conservative Yield: minimises risk by staying in stablecoin pairs only.
 # Suitable for users who prioritise capital preservation over returns.
 CONSERVATIVE_YIELD: StrategyConfig = StrategyConfig(
     name="Conservative Yield",
@@ -238,7 +238,7 @@ CONSERVATIVE_YIELD: StrategyConfig = StrategyConfig(
     auto_execute=True,
 )
 
-# Balanced Growth — mixed exposure between stablecoins and large-cap assets.
+# Balanced Growth: mixed exposure between stablecoins and large-cap assets.
 # Suitable for users who accept moderate risk for higher potential returns.
 BALANCED_GROWTH: StrategyConfig = StrategyConfig(
     name="Balanced Growth",
@@ -254,7 +254,7 @@ BALANCED_GROWTH: StrategyConfig = StrategyConfig(
     auto_execute=True,
 )
 
-# Aggressive Alpha — large-cap pairs, prioritises APR over stability.
+# Aggressive Alpha: large-cap pairs, prioritises APR over stability.
 # Suitable for experienced users comfortable with higher impermanent loss risk.
 AGGRESSIVE_ALPHA: StrategyConfig = StrategyConfig(
     name="Aggressive Alpha",
@@ -277,7 +277,7 @@ STRATEGY_PROFILES: dict[str, StrategyConfig] = {
     "aggressive": AGGRESSIVE_ALPHA,
 }
 
-# Custom is handled separately — user supplies all parameters interactively.
+# Custom is handled separately; user supplies all parameters interactively.
 CUSTOM_STRATEGY_KEY: str = "custom"
 
 
@@ -294,5 +294,5 @@ DB_FILENAME: str = "tglp_bot.db"
 # ---------------------------------------------------------------------------
 
 LOG_LEVEL: str = "INFO"
-LOG_FORMAT: str = "%(asctime)s [%(levelname)s] %(name)s — %(message)s"
+LOG_FORMAT: str = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"

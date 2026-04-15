@@ -104,14 +104,14 @@ def test_formatters():
     assert short.endswith("eC9B"), f"Got: {short}"
     assert "..." in short
 
-    # format_strategy_summary — smoke test
+    # format_strategy_summary: smoke test
     summary = format_strategy_summary(
         CONSERVATIVE_YIELD, True, False, addr, bnb_balance=0.5
     )
     assert isinstance(summary, str) and len(summary) > 50
     assert "Conservative" in summary
     assert "0xAb58" in summary
-    # BNB value is escape_md'd so the dot becomes \. — check the escaped form
+    # BNB value is escape_md'd so the dot becomes \., check the escaped form
     assert "BNB" in summary
     assert "0\\.5000" in summary   # escape_md turns "0.5000 BNB" → "0\.5000 BNB"
 
@@ -132,20 +132,20 @@ def test_keyboards():
         pool_detail_keyboard,
     )
 
-    # Strategy selection — 4 rows
+    # Strategy selection: 4 rows
     kb = strategy_selection_keyboard()
     assert isinstance(kb, InlineKeyboardMarkup)
     assert len(kb.inline_keyboard) == 4
     assert kb.inline_keyboard[0][0].callback_data == "ob_strat_conservative"
     assert kb.inline_keyboard[3][0].callback_data == "ob_strat_custom"
 
-    # Settings keyboard — reflects compound ON
+    # Settings keyboard: reflects compound ON
     sk = settings_menu_keyboard(compound_enabled=True, auto_execute=False)
     labels = [btn.text for row in sk.inline_keyboard for btn in row]
     assert any("ON" in l for l in labels), f"No ON label found: {labels}"
     assert any("Confirm" in l for l in labels), f"No Confirm label: {labels}"
 
-    # Settings keyboard — reflects compound OFF
+    # Settings keyboard: reflects compound OFF
     sk2 = settings_menu_keyboard(compound_enabled=False, auto_execute=True)
     labels2 = [btn.text for row in sk2.inline_keyboard for btn in row]
     assert any("OFF" in l for l in labels2)

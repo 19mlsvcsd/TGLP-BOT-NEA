@@ -8,10 +8,10 @@ Testnet RPC: reading balances, estimating gas, building transactions,
 simulating them via eth_call, signing, broadcasting, and waiting for receipts.
 
 All other modules that need on-chain data call functions from here. No other
-module should instantiate Web3 directly — this keeps the RPC URL, chain ID,
+module should instantiate Web3 directly; this keeps the RPC URL, chain ID,
 and connection logic in one place so they are easy to update or swap out.
 
-Security note: private keys are passed in as arguments only — they are never
+Security note: private keys are passed in as arguments only, they are never
 stored, logged, or written anywhere by this module.
 """
 
@@ -79,7 +79,7 @@ def get_web3(rpc_url: Optional[str] = None) -> Web3:
     Create and return a Web3 instance connected to BSC Testnet.
 
     Verifies the connection is live and that the connected chain matches
-    BSC_TESTNET_CHAIN_ID (97). Raises an exception if either check fails —
+    BSC_TESTNET_CHAIN_ID (97). Raises an exception if either check fails;
     the caller should catch this during startup and abort rather than operate
     on the wrong network.
 
@@ -353,7 +353,7 @@ def simulate_transaction(w3: Web3, tx: TxParams) -> Tuple[bool, str]:
         logger.warning("Transaction simulation reverted: %s", reason)
         return False, f"Transaction would revert: {reason}"
     except Exception as e:
-        # Other exceptions (RPC error, timeout) — report but do not crash.
+        # Other exceptions (RPC error, timeout): report but do not crash.
         logger.warning("Transaction simulation failed with unexpected error: %s", e)
         return False, f"Simulation error: {e}"
 
@@ -401,7 +401,7 @@ def sign_and_send(
         )
         status = "confirmed" if receipt.status == 1 else "reverted"
         logger.info(
-            "Transaction %s — status: %s, gas used: %d",
+            "Transaction %s: status %s, gas used: %d",
             tx_hash.hex(), status, receipt.gasUsed,
         )
         return receipt

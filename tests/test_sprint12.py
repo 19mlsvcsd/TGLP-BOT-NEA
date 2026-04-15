@@ -1,16 +1,16 @@
 """
 tests/test_sprint12.py
 ======================
-Sprint 12 — Integration Testing & Polish.
+Sprint 12: Integration Testing & Polish.
 
 This file contains the end-to-end integration tests that simulate the full
 TGLP Bot pipeline without any live Telegram interaction. The backend modules
 are exercised in the same sequence a real user cycle would trigger them.
 
-Tier 1 — Pure unit / mock tests (no network):
+Tier 1 - Pure unit / mock tests (no network):
   - Pipeline wiring: session → snapshot → analysis → decision → cycle
 
-Tier 2 — Live BSC Testnet read-only tests:
+Tier 2 - Live BSC Testnet read-only tests:
   - Full run_cycle() with auto_execute=False on a live snapshot
   - Portfolio summary built from a live wallet balance query
   - History query from an isolated SQLite database
@@ -105,7 +105,7 @@ def _isolated_db():
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Session creation (simulates /start onboarding)
+# Step 1: Session creation (simulates /start onboarding)
 # ---------------------------------------------------------------------------
 
 def test_session_creation():
@@ -122,11 +122,11 @@ def test_session_creation():
     assert session.total_gas_spent_bnb == 0.0
     assert session.rebalance_count == 0
     assert session.is_operational() is True
-    print("[PASS] Session creation — defaults are correct")
+    print("[PASS] Session creation: defaults are correct")
 
 
 # ---------------------------------------------------------------------------
-# Step 2 — Market snapshot (simulates /explore)
+# Step 2: Market snapshot (simulates /explore)
 # ---------------------------------------------------------------------------
 
 def test_snapshot_filtering_and_scoring():
@@ -155,17 +155,17 @@ def test_snapshot_filtering_and_scoring():
     for i in range(len(scored) - 1):
         assert scored[i].score >= scored[i + 1].score
 
-    print(f"[PASS] Snapshot filter+score — {len(scored)} pools after filtering, ranked correctly")
+    print(f"[PASS] Snapshot filter+score: {len(scored)} pools after filtering, ranked correctly")
 
 
 # ---------------------------------------------------------------------------
-# Step 3 — Analysis (first-cycle baseline)
+# Step 3: Analysis (first-cycle baseline)
 # ---------------------------------------------------------------------------
 
 def test_first_cycle_analysis_empty_deltas():
     """
     On the very first cycle (previous=None) analyse_cycle must return
-    empty deltas and significant_change=False — the dispatcher should still
+    empty deltas and significant_change=False; the dispatcher should still
     proceed to the decision step rather than skip.
     """
     pools = [_pool("0xA", "USDT-WBNB", apr=12.0)]
@@ -175,7 +175,7 @@ def test_first_cycle_analysis_empty_deltas():
     assert result.pool_deltas == []
     assert result.significant_change is False
     assert len(result.anomalous_addresses) == 0
-    print("[PASS] First-cycle analysis — empty deltas, no anomalies, no significant change")
+    print("[PASS] First-cycle analysis: empty deltas, no anomalies, no significant change")
 
 
 def test_second_cycle_analysis_produces_deltas():
@@ -192,11 +192,11 @@ def test_second_cycle_analysis_produces_deltas():
     assert delta is not None, "Expected PoolDelta for 0xA"
     assert abs(delta.apr_change_abs - 0.5) < 0.001
     assert delta.tvl_change_abs > 0
-    print("[PASS] Second-cycle analysis — delta computed for 0xA")
+    print("[PASS] Second-cycle analysis: delta computed for 0xA")
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — Decision engine (allocate when no position)
+# Step 4: Decision engine (allocate when no position)
 # ---------------------------------------------------------------------------
 
 def test_decision_allocate_no_position():
@@ -229,11 +229,11 @@ def test_decision_allocate_no_position():
     )
     assert result.action == Decision.ALLOCATE
     assert result.target_pool is not None
-    print(f"[PASS] Decision ALLOCATE — target: {result.target_pool.symbol}")
+    print(f"[PASS] Decision ALLOCATE: target: {result.target_pool.symbol}")
 
 
 # ---------------------------------------------------------------------------
-# Step 5 — run_cycle() with mocked snapshot (no network)
+# Step 5: run_cycle() with mocked snapshot (no network)
 # ---------------------------------------------------------------------------
 
 def test_run_cycle_paused_session_skips():
@@ -248,7 +248,7 @@ def test_run_cycle_paused_session_skips():
     run_cycle(session, lambda cid, msg: notify_calls.append(msg), mock_w3)
 
     assert notify_calls == [], "notify_func must not be called for a paused session"
-    print("[PASS] run_cycle — paused session skips without notification")
+    print("[PASS] run_cycle: paused session skips without notification")
 
 
 def test_run_cycle_locked_session_skips():
@@ -262,7 +262,7 @@ def test_run_cycle_locked_session_skips():
     run_cycle(session, lambda cid, msg: notify_calls.append(msg), mock_w3)
 
     assert notify_calls == [], "notify_func must not be called for a locked session"
-    print("[PASS] run_cycle — locked session skips without notification")
+    print("[PASS] run_cycle: locked session skips without notification")
 
 
 def test_run_cycle_proposal_sent_on_good_snapshot():
@@ -295,7 +295,7 @@ def test_run_cycle_proposal_sent_on_good_snapshot():
     )
     # session.previous_snapshot must be populated after a cycle.
     assert session.previous_snapshot is snap
-    print(f"[PASS] run_cycle — proposal sent ({len(notify_calls)} message(s))")
+    print(f"[PASS] run_cycle: proposal sent ({len(notify_calls)} message(s))")
 
 
 def test_run_cycle_sets_previous_snapshot():
@@ -312,7 +312,7 @@ def test_run_cycle_sets_previous_snapshot():
         run_cycle(session, lambda *_: None, mock_w3)
 
     assert session.previous_snapshot is snap
-    print("[PASS] run_cycle — session.previous_snapshot updated after cycle")
+    print("[PASS] run_cycle: session.previous_snapshot updated after cycle")
 
 
 def test_run_cycle_no_action_on_empty_pools():
@@ -330,11 +330,11 @@ def test_run_cycle_no_action_on_empty_pools():
         run_cycle(session, lambda cid, msg: notify_calls.append(msg), mock_w3)
 
     assert notify_calls == []
-    print("[PASS] run_cycle — empty snapshot exits without notification")
+    print("[PASS] run_cycle: empty snapshot exits without notification")
 
 
 # ---------------------------------------------------------------------------
-# Step 6 — Portfolio summary (simulates /dashboard)
+# Step 6: Portfolio summary (simulates /dashboard)
 # ---------------------------------------------------------------------------
 
 def test_portfolio_summary_no_position():
@@ -360,7 +360,7 @@ def test_portfolio_summary_no_position():
     finally:
         port_mod.get_bnb_balance = original_fn
 
-    print("[PASS] Portfolio summary — no position: wallet_bnb=1.5, wallet_usd=$900")
+    print("[PASS] Portfolio summary: no position, wallet_bnb=1.5, wallet_usd=$900")
 
 
 def test_portfolio_pnl_after_entry_record():
@@ -379,11 +379,11 @@ def test_portfolio_pnl_after_entry_record():
     assert pnl.unrealised_pnl_pct == 20.0
     assert pnl.gas_cost_usd == 6.0
     assert pnl.net_pnl_usd == 194.0
-    print("[PASS] Portfolio P&L — $200 unrealised, $194 net after $6 gas")
+    print("[PASS] Portfolio P&L: $200 unrealised, $194 net after $6 gas")
 
 
 # ---------------------------------------------------------------------------
-# Step 7 — History query (simulates /history)
+# Step 7: History query (simulates /history)
 # ---------------------------------------------------------------------------
 
 def test_history_empty_for_new_user():
@@ -399,7 +399,7 @@ def test_history_empty_for_new_user():
         assert count == 0
     finally:
         os.unlink(path)
-    print("[PASS] History — empty list for new user")
+    print("[PASS] History: empty list for new user")
 
 
 def test_history_insert_and_retrieve():
@@ -435,7 +435,7 @@ def test_history_insert_and_retrieve():
         assert count == 1
     finally:
         os.unlink(path)
-    print("[PASS] History — trade inserted and retrieved correctly")
+    print("[PASS] History: trade inserted and retrieved correctly")
 
 
 def test_history_pagination():
@@ -463,7 +463,7 @@ def test_history_pagination():
         assert count_trades_for_user(user_chat_id=70001, db_path=path) == 7
     finally:
         os.unlink(path)
-    print("[PASS] History pagination — page 0: 5 trades, page 1: 2 trades")
+    print("[PASS] History pagination: page 0: 5 trades, page 1: 2 trades")
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ def test_build_cycle_callback_is_callable():
     mock_w3 = MagicMock()
     cb = build_cycle_callback(session, lambda *_: None, mock_w3)
     assert callable(cb)
-    print("[PASS] build_cycle_callback — returns a callable")
+    print("[PASS] build_cycle_callback: returns a callable")
 
 
 def test_build_position_dict_keys():
@@ -498,11 +498,11 @@ def test_build_position_dict_keys():
     assert pos["token0_symbol"] == "USDT"
     assert pos["token1_symbol"] == "WBNB"
     assert pos["token_id"] == 42
-    print("[PASS] _build_position_dict — all keys present, symbols split correctly")
+    print("[PASS] _build_position_dict: all keys present, symbols split correctly")
 
 
 # ---------------------------------------------------------------------------
-# Tier 2 — Live BSC Testnet end-to-end pipeline
+# Tier 2: Live BSC Testnet end-to-end pipeline
 # ---------------------------------------------------------------------------
 
 def test_live_full_pipeline():
@@ -512,7 +512,7 @@ def test_live_full_pipeline():
     1. Create a UserSession (onboarding simulation).
     2. Fetch a real market snapshot via get_market_snapshot().
     3. Filter + score pools for AGGRESSIVE_ALPHA strategy.
-    4. Run run_cycle() — decision summary must be sent via notify_func.
+    4. Run run_cycle(); decision summary must be sent via notify_func.
     5. Verify session.previous_snapshot is populated.
     6. Build portfolio summary from live wallet balance.
     """
@@ -523,7 +523,7 @@ def test_live_full_pipeline():
     w3 = get_web3()
     assert w3.is_connected(), "BSC Testnet not reachable"
 
-    # Step 1 — session
+    # Step 1: session
     session = UserSession(
         chat_id=79999,
         wallet_address="0x" + "0" * 40,
@@ -533,23 +533,23 @@ def test_live_full_pipeline():
         auto_execute=False,
     )
 
-    # Step 2 — snapshot
+    # Step 2: snapshot
     invalidate_cache()
     snap = get_market_snapshot(w3=w3)
     assert len(snap.pools) > 0, "No pools fetched from DeFiLlama"
     print(f"   Snapshot: {len(snap.pools)} pools, BNB=${snap.prices.get('BNB', 0):.2f}")
 
-    # Step 3 — filter + score
+    # Step 3: filter + score
     filtered = filter_pools_by_strategy(snap.pools, AGGRESSIVE_ALPHA, None)
     scored = score_pools(filtered)
     print(f"   Filtered: {len(filtered)} pools pass AGGRESSIVE_ALPHA filter")
 
-    # Step 4 — run_cycle
+    # Step 4: run_cycle
     notify_calls = []
 
     run_cycle(session, lambda cid, msg: notify_calls.append(msg), w3)
 
-    # Step 5 — session state
+    # Step 5: session state
     assert session.previous_snapshot is not None, (
         "session.previous_snapshot must be set after a cycle"
     )
@@ -559,7 +559,7 @@ def test_live_full_pipeline():
     if notify_calls:
         print(f"   Decision: {notify_calls[0][:80]}...")
 
-    # Step 6 — portfolio summary (mock balance — testnet wallet is unfunded)
+    # Step 6: portfolio summary (mock balance, testnet wallet is unfunded)
     original_fn = port_mod.get_bnb_balance
     port_mod.get_bnb_balance = lambda _w3, _addr: 0.5
     try:
@@ -570,7 +570,7 @@ def test_live_full_pipeline():
     finally:
         port_mod.get_bnb_balance = original_fn
 
-    print("[PASS] Live full pipeline — snapshot → analysis → decision → portfolio summary")
+    print("[PASS] Live full pipeline: snapshot → analysis → decision → portfolio summary")
 
 
 # ===========================================================================
@@ -611,7 +611,7 @@ if __name__ == "__main__":
     test_build_cycle_callback_is_callable()
     test_build_position_dict_keys()
 
-    # Tier 2 — live BSC Testnet
+    # Tier 2: live BSC Testnet
     test_live_full_pipeline()
 
     print()
