@@ -1,19 +1,22 @@
 """
 bot/commands.py
 ===============
-Command handlers for TGLP Bot.
+Command handlers for TGLP Bot — Sprint 11 full implementations.
 
-Each Telegram slash command has its handler function here. The /help command
-is fully implemented in this sprint. All other commands return a descriptive
-"coming in a future sprint" message for now and will be replaced with full
-implementations in Sprints 9–11.
+Every Telegram slash command has its handler function here. All commands
+that were stubs in earlier sprints are now fully wired to their core modules.
 
 Handler registration happens in bot/app.py. Command functions here are kept
-thin: they validate the user has a session, then delegate to the relevant
-core module (portfolio, market_data, etc.) as those modules are built.
+thin: they validate the user has a session, then delegate to core modules
+(portfolio, market_data, decision_engine, etc.).
+
+w3 and notify_func are retrieved from context.application.bot_data, where
+they are placed by bot/app.py's _post_init hook.
 """
 
+import asyncio
 import logging
+import math
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -23,6 +26,12 @@ from core.strategy_manager import session_manager
 from helpers.formatters import escape_md
 
 logger = logging.getLogger(__name__)
+
+# Number of trades to show per /history page.
+_HISTORY_PAGE_SIZE = 5
+
+# Number of pools to show per /explore page.
+_EXPLORE_PAGE_SIZE = 5
 
 
 # ---------------------------------------------------------------------------
@@ -61,23 +70,98 @@ async def dashboard_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /dashboard — show portfolio overview, position details, P&L, and system health.
-
-    Full implementation: Sprint 11 (requires core/portfolio.py from Sprint 9).
+    /dashboard — portfolio overview: position, P&L, gas costs, system health.
     """
     if not await _require_session(update):
         return
 
     session = session_manager.get(update.effective_chat.id)
-    await update.message.reply_text(
-        "📊 *Dashboard*\n\n"
-        f"Wallet: `{escape_md(session.wallet_address)}`\n"
-        f"Strategy: {escape_md(session.active_strategy.name)}\n"
-        f"Position: {'Open' if session.has_position() else 'None'}\n"
-        f"Status: {'⏸ Paused' if session.paused else ('🔒 Safety locked' if session.safety_locked else '✅ Active')}\n\n"
-        "_Full dashboard with P&L and metrics coming in Sprint 11\\._",
-        parse_mode=ParseMode.MARKDOWN_V2,
+    w3 = context.application.bot_data.get("w3")
+
+    from core.portfolio import build_portfolio_summary
+    from core.safety import safety_controller
+    from helpers.formatters import (
+        format_bnb, format_usd, format_pct,
+        format_token_amount, short_address,
     )
+
+    # Fetch BNB price from the cached market snapshot.
+    bnb_price = 0.0
+    try:
+        from core.market_data import get_market_snapshot
+        loop = asyncio.get_running_loop()
+        snapshot = await loop.run_in_executor(
+            None, lambda: get_market_snapshot(w3=w3)
+        )
+        bnb_price = snapshot.prices.get("BNB", 0.0)
+    except Exception as exc:
+        logger.warning("dashboard: could not fetch BNB price: %s", exc)
+
+    # build_portfolio_summary makes one live RPC call — run in thread pool.
+    loop = asyncio.get_running_loop()
+    summary = await loop.run_in_executor(
+        None, build_portfolio_summary, w3, session, bnb_price
+    )
+
+    # ── Status line ────────────────────────────────────────────────────────
+    if session.safety_locked:
+        status_str = "🔒 Safety locked"
+    elif session.paused:
+        status_str = "⏸ Paused"
+    else:
+        status_str = "✅ Active"
+
+    # ── Position block ─────────────────────────────────────────────────────
+    if summary.has_position and summary.position_value:
+        pv = summary.position_value
+        pos_lines = (
+            f"*Position \\(open\\):*\n"
+            f"  `{escape_md(format_token_amount(pv.amount0, pv.token0_symbol))}` "
+            f"\\+ `{escape_md(format_token_amount(pv.amount1, pv.token1_symbol))}`\n"
+            f"  Est\\. value: `{escape_md(format_usd(pv.value_usd))}`"
+        )
+    else:
+        pos_lines = "*Position:* None"
+
+    # ── P&L block ──────────────────────────────────────────────────────────
+    pnl = summary.pnl
+    pnl_icon = "📈" if pnl.unrealised_pnl_usd >= 0 else "📉"
+    pnl_lines = (
+        f"*P&L:*\n"
+        f"  Entry: `{escape_md(format_usd(pnl.entry_value_usd))}`\n"
+        f"  Current: `{escape_md(format_usd(pnl.current_value_usd))}`\n"
+        f"  {pnl_icon} Unrealised: `{escape_md(format_usd(pnl.unrealised_pnl_usd))}` "
+        f"\\({escape_md(format_pct(pnl.unrealised_pnl_pct))}\\)\n"
+        f"  Gas spent: `{escape_md(format_bnb(pnl.gas_spent_bnb))}` "
+        f"\\(`{escape_md(format_usd(pnl.gas_cost_usd))}`\\)\n"
+        f"  Net P&L: `{escape_md(format_usd(pnl.net_pnl_usd))}`\n"
+        f"  Rebalances: {pnl.rebalance_count}"
+    )
+
+    # ── System health block ────────────────────────────────────────────────
+    try:
+        health = safety_controller.get_system_health(w3)
+        latency_ms = health.get("rpc_latency_ms", 0)
+        gas_gwei = health.get("gas_price_gwei", 0.0)
+        health_str = (
+            f"RPC latency: `{escape_md(f'{latency_ms:.0f}')}ms` \\| "
+            f"Gas: `{escape_md(f'{gas_gwei:.2f}')} Gwei`"
+        )
+    except Exception:
+        health_str = "System health: N/A"
+
+    text = (
+        f"📊 *Dashboard*\n\n"
+        f"Wallet: `{escape_md(short_address(session.wallet_address))}`\n"
+        f"Strategy: {escape_md(session.active_strategy.name)}\n"
+        f"Status: {escape_md(status_str)}\n"
+        f"Wallet balance: `{escape_md(format_bnb(summary.wallet_bnb))}` "
+        f"\\(`{escape_md(format_usd(summary.wallet_usd))}`\\)\n\n"
+        f"{pos_lines}\n\n"
+        f"{pnl_lines}\n\n"
+        f"*System:* {health_str}"
+    )
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
 
 
 # ---------------------------------------------------------------------------
@@ -88,19 +172,56 @@ async def allocate_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /allocate — manually trigger an analysis and allocation cycle.
+    /allocate — manually trigger an immediate analysis and allocation cycle.
 
-    Full implementation: Sprint 11 (requires core/dispatcher.py from Sprint 10).
+    Runs the full dispatcher pipeline (market snapshot → analysis → decision
+    → execute/propose) in a thread-pool executor so the event loop is not
+    blocked during RPC calls.
     """
     if not await _require_session(update):
         return
 
+    session = session_manager.get(update.effective_chat.id)
+
+    if not session.is_operational():
+        state = "paused" if session.paused else "safety\\-locked"
+        await update.message.reply_text(
+            f"⚠️ Bot is {state}\\. Cannot run a cycle\\.\n\n"
+            f"Use /settings to resume or clear the safety lock\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    w3 = context.application.bot_data.get("w3")
+    notify_func = context.application.bot_data.get("notify_func")
+
+    if w3 is None:
+        await update.message.reply_text(
+            "⚠️ Blockchain connection not available\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
     await update.message.reply_text(
-        "⚡ *Manual Allocation*\n\n"
-        "This will trigger an immediate analysis cycle\\.\n\n"
-        "_Manual allocation will be live in Sprint 11\\._",
+        "⏳ Running analysis cycle\\.\\.\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
+
+    from core.dispatcher import run_cycle
+
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(None, run_cycle, session, notify_func, w3)
+        await update.message.reply_text(
+            "✅ Cycle complete\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+    except Exception as exc:
+        logger.exception("allocate_command: cycle raised: %s", exc)
+        await update.message.reply_text(
+            f"❌ Cycle error: `{escape_md(str(exc))}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -111,42 +232,136 @@ async def explore_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /explore — browse top pools filtered by the user's strategy.
+    /explore — browse top pools filtered and scored by the user's strategy.
 
-    Full implementation: Sprint 11 (requires core/market_data.py from Sprint 4).
+    Shows _EXPLORE_PAGE_SIZE pools per page with a pagination keyboard.
+    Pool detail buttons store the address fragment in callback_data so
+    callbacks.py can look up the full pool object from the snapshot stored
+    in context.user_data["explore_snapshot"].
     """
     if not await _require_session(update):
         return
 
     session = session_manager.get(update.effective_chat.id)
+    w3 = context.application.bot_data.get("w3")
+
     await update.message.reply_text(
-        "🔍 *Pool Explorer*\n\n"
-        f"Filtering for strategy: *{escape_md(session.active_strategy.name)}*\n\n"
-        "_Live pool data and filtering will be available in Sprint 11\\._",
+        "⏳ Fetching pool data\\.\\.\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+    from core.market_data import get_market_snapshot
+    from core.decision_engine import filter_pools_by_strategy, score_pools
+    from helpers.formatters import format_pool_info
+    from bot.keyboards import pool_list_keyboard
+
+    loop = asyncio.get_running_loop()
+    try:
+        snapshot = await loop.run_in_executor(
+            None, lambda: get_market_snapshot(w3=w3)
+        )
+    except Exception as exc:
+        logger.exception("explore_command: snapshot error: %s", exc)
+        await update.message.reply_text(
+            f"❌ Could not fetch pool data: `{escape_md(str(exc))}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    if not snapshot.pools:
+        await update.message.reply_text(
+            "⚠️ No pool data available right now\\. Try again shortly\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    # Store the snapshot so pool detail callbacks can look up full objects.
+    context.user_data["explore_snapshot"] = snapshot
+
+    filtered = filter_pools_by_strategy(snapshot.pools, session.active_strategy, None)
+    scored = score_pools(filtered)
+
+    if not scored:
+        await update.message.reply_text(
+            f"🔍 *Pool Explorer*\n\n"
+            f"No pools matched the *{escape_md(session.active_strategy.name)}* "
+            f"strategy filters\\.\n\n"
+            f"Try /settings to change your strategy\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    await _send_explore_page(update, context, scored, session, page=0)
+
+
+async def _send_explore_page(update, context, scored, session, page: int) -> None:
+    """Render one page of explore results and send it."""
+    from helpers.formatters import format_pool_info
+    from bot.keyboards import pool_list_keyboard
+
+    page_size = _EXPLORE_PAGE_SIZE
+    total_pages = max(1, math.ceil(len(scored) / page_size))
+    page_pools = scored[page * page_size: (page + 1) * page_size]
+
+    lines = [
+        f"🔍 *Pool Explorer*\n"
+        f"Strategy: *{escape_md(session.active_strategy.name)}* — "
+        f"{escape_md(str(len(scored)))} pools matched\n"
+    ]
+    for i, sp in enumerate(page_pools):
+        pool_dict = {
+            "pool":      sp.pool.pool,
+            "symbol":    sp.pool.symbol,
+            "apr":       sp.pool.apr,
+            "tvl_usd":   sp.pool.tvl_usd,
+            "volume_24h":sp.pool.volume_24h,
+            "fee_tier":  sp.pool.fee_tier,
+            "pair_type": sp.pool.pair_type,
+        }
+        rank = page * page_size + i + 1
+        lines.append(format_pool_info(pool_dict, rank=rank))
+        lines.append("")
+
+    text = "\n".join(lines)
+
+    pool_dicts_for_keyboard = [
+        {"symbol": sp.pool.symbol, "pool": sp.pool.pool} for sp in page_pools
+    ]
+    keyboard = pool_list_keyboard(pool_dicts_for_keyboard, page, total_pages)
+
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=keyboard,
     )
 
 
 # ---------------------------------------------------------------------------
-# /watch
+# /watch — entry point (conversation is in bot/conversations.py)
 # ---------------------------------------------------------------------------
 
 async def watch_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /watch — add a pool or token to the watchlist with custom alert thresholds.
+    /watch — redirects into the /watch ConversationHandler.
 
-    Full implementation: Sprint 11 (requires core/watchlist.py from Sprint 9
-    and the /watch ConversationHandler from bot/conversations.py).
+    The ConversationHandler in bot/conversations.py registers its own
+    entry_point CommandHandler for /watch, so this standalone handler is
+    only reached if the conversation is not active.  It simply informs the
+    user to use /watch again to start the flow.
     """
     if not await _require_session(update):
         return
 
     await update.message.reply_text(
-        "👁 *Watchlist*\n\n"
-        "Use: `/watch <pool_address_or_token>` to start monitoring\\.\n\n"
-        "_Watchlist setup conversation will be available in Sprint 11\\._",
+        "👁 *Add to Watchlist*\n\n"
+        "Use /watch again to start monitoring a pool address or token\\.\n\n"
+        "Supported thresholds:\n"
+        "• APR above X% — alert when yield rises above your target\n"
+        "• APR below X% — alert when yield drops too low\n"
+        "• TVL below $X — alert when pool liquidity falls\n\n"
+        "Type /cancel at any time to exit the setup\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
@@ -160,16 +375,33 @@ async def alerts_command(
 ) -> None:
     """
     /alerts — view and manage active watchlist alerts.
-
-    Full implementation: Sprint 11 (requires core/alerts.py from Sprint 9).
     """
     if not await _require_session(update):
         return
 
+    session = session_manager.get(update.effective_chat.id)
+
+    from core.watchlist import load_watchlist
+    from bot.keyboards import watchlist_keyboard
+
+    # Refresh from DB so the list is always current.
+    load_watchlist(session)
+
+    count = len(session.watchlist)
+    if count == 0:
+        await update.message.reply_text(
+            "🔔 *Active Alerts*\n\n"
+            "You have no active watchlist alerts\\.\n\n"
+            "Use /watch to add a pool or token to monitor\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
     await update.message.reply_text(
-        "🔔 *Active Alerts*\n\n"
-        "_Alert management will be available in Sprint 11\\._",
+        f"🔔 *Active Alerts* \\({escape_md(str(count))}\\)\n\n"
+        f"Tap *Remove* next to an alert to delete it\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=watchlist_keyboard(session.watchlist),
     )
 
 
@@ -181,17 +413,52 @@ async def history_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /history — paginated transaction history with filters.
-
-    Full implementation: Sprint 11 (requires core/portfolio.py from Sprint 9).
+    /history — paginated list of all transactions.
     """
     if not await _require_session(update):
         return
 
+    session = session_manager.get(update.effective_chat.id)
+    await _send_history_page(update, session, page=0)
+
+
+async def _send_history_page(update, session, page: int) -> None:
+    """Render one page of trade history and send it."""
+    from helpers.database import get_trades_for_user, count_trades_for_user
+    from helpers.formatters import format_tx_summary
+    from bot.keyboards import history_keyboard
+
+    total = count_trades_for_user(session.chat_id)
+    total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
+    trades = get_trades_for_user(
+        session.chat_id,
+        limit=_HISTORY_PAGE_SIZE,
+        offset=page * _HISTORY_PAGE_SIZE,
+    )
+
+    if not trades and page == 0:
+        await update.message.reply_text(
+            "📜 *Transaction History*\n\n"
+            "No transactions recorded yet\\.\n\n"
+            "_Transactions will appear here after your first allocation\\._",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    header = (
+        f"📜 *Transaction History* — Page {page + 1}/{total_pages} "
+        f"\\({escape_md(str(total))} total\\)\n"
+    )
+    lines = [header]
+    for trade in trades:
+        lines.append(format_tx_summary(trade))
+        lines.append("")
+
+    text = "\n".join(lines)
     await update.message.reply_text(
-        "📜 *Transaction History*\n\n"
-        "_Your trade history will appear here in Sprint 11\\._",
+        text,
         parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=history_keyboard(page, total_pages),
     )
 
 
@@ -203,18 +470,50 @@ async def export_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /export — export full trade history as a formatted text/CSV output.
+    /export — send the complete trade history as formatted text.
 
-    Full implementation: Sprint 11 (requires core/portfolio.py from Sprint 9).
+    Splits into multiple messages if the history exceeds Telegram's 4096-
+    character message limit.
     """
     if not await _require_session(update):
         return
 
-    await update.message.reply_text(
-        "📤 *Export*\n\n"
-        "_Trade history export will be available in Sprint 11\\._",
-        parse_mode=ParseMode.MARKDOWN_V2,
+    session = session_manager.get(update.effective_chat.id)
+
+    from helpers.database import get_all_trades_for_user
+    from helpers.formatters import format_tx_summary
+
+    trades = get_all_trades_for_user(session.chat_id)
+
+    if not trades:
+        await update.message.reply_text(
+            "📤 *Export*\n\nNo trades to export yet\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    # Build one string per trade and batch into ≤3800-char chunks.
+    entries = [format_tx_summary(t) for t in trades]
+    chunks: list[str] = []
+    current = ""
+    for entry in entries:
+        block = entry + "\n\n"
+        if len(current) + len(block) > 3800:
+            chunks.append(current.rstrip())
+            current = block
+        else:
+            current += block
+    if current:
+        chunks.append(current.rstrip())
+
+    header = (
+        f"📤 *Trade History Export*\n"
+        f"{escape_md(str(len(trades)))} trades "
+        f"\\({escape_md(str(len(chunks)))} message{'' if len(chunks) == 1 else 's'}\\)\n"
     )
+    await update.message.reply_text(header, parse_mode=ParseMode.MARKDOWN_V2)
+    for chunk in chunks:
+        await update.message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN_V2)
 
 
 # ---------------------------------------------------------------------------
@@ -225,9 +524,7 @@ async def settings_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /settings — view and change strategy, compounding, auto-execute, slippage.
-
-    Full implementation: Sprint 11.
+    /settings — view and change strategy, compounding, auto-execute, pause.
     """
     if not await _require_session(update):
         return
@@ -281,7 +578,7 @@ async def reset_command(
 
 
 # ---------------------------------------------------------------------------
-# /help — fully implemented
+# /help — fully implemented in Sprint 3, unchanged
 # ---------------------------------------------------------------------------
 
 async def help_command(
@@ -293,7 +590,6 @@ async def help_command(
     Optionally accepts a command name argument for focused help:
     /help dashboard — detailed help for /dashboard.
     """
-    # Check if the user asked for help on a specific command.
     args = context.args
     if args:
         await _help_specific(update, args[0].lstrip("/").lower())
@@ -360,13 +656,7 @@ async def help_command(
 
 
 async def _help_specific(update: Update, topic: str) -> None:
-    """
-    Send focused help text for a specific command or DeFi concept.
-
-    Args:
-        update: The incoming Update.
-        topic:  Lowercase command name or concept keyword.
-    """
+    """Send focused help text for a specific command or DeFi concept."""
     explanations = {
         "dashboard": (
             "📊 */dashboard*\n\n"
@@ -400,11 +690,11 @@ async def _help_specific(update: Update, topic: str) -> None:
         "watch": (
             "👁 */watch*\n\n"
             "Monitor a pool or token without putting money in it\\.\n\n"
-            "Usage: `/watch <pool_address>` or `/watch <TOKEN>`\n\n"
+            "Usage: `/watch` — starts a guided setup\\.\n\n"
             "You'll be asked to set a threshold type:\n"
             "• APR below X% — alert when yield drops too low\n"
             "• APR above X% — alert when a new opportunity appears\n"
-            "• Price moves more than X% in one cycle"
+            "• TVL below $X — alert when pool liquidity falls"
         ),
         "settings": (
             "⚙️ */settings*\n\n"
@@ -488,6 +778,6 @@ async def _help_specific(update: Update, topic: str) -> None:
         topic,
         f"❓ No help entry found for `{escape_md(topic)}`\\.\n\n"
         "Try `/help` for the full command list, or one of:\n"
-        "`/help lp` `//help apr` `/help tvl` `/help il` `/help v3`",
+        "`/help lp` `/help apr` `/help tvl` `/help il` `/help v3`",
     )
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)

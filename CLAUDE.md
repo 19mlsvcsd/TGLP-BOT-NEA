@@ -489,15 +489,78 @@ project state before making any changes.
 - notify_func decouples the dispatcher from Telegram — app.py injects it during job registration
 - Execution path (auto_execute=True) is implemented but not tested end-to-end (requires funded wallet — by design)
 
-### Next Sprint
-- Sprint 11: Wire Up All Commands
-  - Update `bot/commands.py`: /dashboard, /allocate, /status, /history, /explore, /export, /reset stubs → real implementations
-  - Update `bot/callbacks.py`: action confirmation callbacks, explorer navigation
-  - Update `bot/conversations.py`: /watch ConversationHandler (full 3-state flow)
-  - Update `bot/app.py`: wire scheduler start/stop, inject notify_func
-
 ### Notes
 - `notify_func` signature: `(chat_id: int, message: str) -> None`. In app.py, this wraps `asyncio.run_coroutine_threadsafe(bot.send_message(chat_id, message), loop)` to bridge the APScheduler background thread to the asyncio Telegram event loop.
 - `build_cycle_callback` looks up `session_manager.get(chat_id)` at call time, not at registration time. This ensures session mutations (position state, flags) are visible in subsequent cycles without re-registering the job.
 - `misfire_grace_time = CYCLE_INTERVAL_SECONDS` — if a cycle fires late (e.g., due to a long-running API call), APScheduler will still run it if the delay is within one interval. After that, it skips and waits for the next slot.
+
+---
+
+## Sprint 11 — Wire Up All Commands — 2026-04-15
+
+### Completed
+- Implemented `bot/app.py` lifecycle hooks:
+  - `_post_init(application)`: creates Web3 connection, builds `notify_func` closure with `asyncio.run_coroutine_threadsafe`, starts `bot_scheduler`, stores `w3` and `notify_func` in `application.bot_data`
+  - `_post_shutdown(application)`: calls `bot_scheduler.shutdown()`
+  - `Application.builder()` now uses `.post_init(_post_init).post_shutdown(_post_shutdown)` chain
+- Updated `bot/onboarding.py` at final confirmation:
+  - Replaced `# TODO Sprint 10` with real scheduler job registration using `context.application.bot_data["w3"]` and `["notify_func"]`
+  - Updated confirmation message: removed "scheduler starts after /allocate" note — scheduler starts immediately on onboarding completion
+- Implemented all commands in `bot/commands.py`:
+  - `/dashboard`: `build_portfolio_summary()` via `run_in_executor` → position value, P&L, gas spent, system health (RPC latency, gas price)
+  - `/allocate`: guards on `is_operational()`, runs `run_cycle()` in thread pool, sends "Cycle complete" on success
+  - `/explore`: fetches snapshot via `run_in_executor`, calls `filter_pools_by_strategy(None)` + `score_pools()`, sends first page with `pool_list_keyboard`; stores snapshot in `context.user_data["explore_snapshot"]` for pool detail callbacks
+  - `/alerts`: calls `load_watchlist(session)`, renders with `watchlist_keyboard`
+  - `/history`: calls `count_trades_for_user` + `get_trades_for_user` (page=0), renders with `history_keyboard`
+  - `/export`: calls `get_all_trades_for_user`, batches into ≤3800-char chunks, sends as multiple messages if needed
+  - Private helper `_send_history_page(update, session, page)` reused by history callbacks
+  - Private helper `_send_explore_page(update, context, scored, session, page)` reused by explore
+- Wired up `bot/callbacks.py`:
+  - `_handle_reset`: calls `bot_scheduler.remove_user_job(chat_id)` before `session_manager.delete()`
+  - `cfg_toggle_pause`: calls `bot_scheduler.pause_user_job()` or `resume_user_job()` in sync with `session.paused`
+  - `_handle_history`: real pagination using `get_trades_for_user` with `offset=page*5`
+  - `_handle_pool pool_detail_*`: looks up pool from `context.user_data["explore_snapshot"]` by `pool[:20]` prefix
+  - `_handle_pool pool_back_list` and `pool_page_*`: re-scores from cached snapshot
+  - `_handle_watchlist alert_remove_*`: calls `remove_watch_item()`, reloads watchlist, re-renders or shows empty message
+  - `_handle_action_confirm action_confirm_*`: re-runs `run_cycle()` via executor (correct: live market re-check before execution)
+- Completed `bot/conversations.py` `/watch` flow — 3 states fully implemented:
+  - State 0 `WATCH_AWAITING_IDENTIFIER`: receive pool address or token symbol; classify as 'pool' (starts with 0x, len≥10) or 'token'; show `_threshold_type_keyboard()`
+  - State 1 `WATCH_AWAITING_THRESHOLD_TYPE`: `CallbackQueryHandler(pattern="^wt_")` maps `wt_apr_above/below`, `wt_tvl_below` to threshold_type strings; asks for numeric value
+  - State 2 `WATCH_AWAITING_THRESHOLD_VALUE`: parse float ≥ 0; call `add_watch_item()`; send confirmation with watch_id and condition summary; clean up user_data
+- Created `tests/test_sprint11.py`: 18 unit tests
+
+### Files Created/Modified
+- `bot/app.py` — post_init / post_shutdown hooks, Application builder chain
+- `bot/onboarding.py` — real scheduler registration at onboarding completion
+- `bot/commands.py` — all commands fully implemented (was all stubs)
+- `bot/callbacks.py` — all TODOs wired (reset, pause, history, pool detail, alert remove, action confirm)
+- `bot/conversations.py` — /watch all 3 states complete
+- `tests/test_sprint11.py` — Sprint 11 test suite (18 tests)
+
+### Tested
+- All 18 Sprint 11 unit tests pass
+- Import checks: all bot modules import cleanly
+- `_post_init` / `_post_shutdown` are coroutine functions
+- `watch_conversation_handler` has exactly 3 states with keys {0, 1, 2}
+- `_threshold_type_keyboard()`: 3 buttons with `wt_` callback prefixes
+- `watchlist_keyboard([])`: single `alert_noop` label; non-empty: one `alert_remove_{id}` per item
+- `pool_list_keyboard`: 2 pool rows, no nav row for single page
+- History page calculation: correct ceil(total / 5) for all edge cases including total=0
+- `format_usd / format_bnb / format_pct / format_large_usd / escape_md`: all correct
+- `add_watch_item` + `remove_watch_item`: isolated DB (tempfile) — add returns positive ID, remove returns True
+
+### Current State
+- The bot is fully wired: `python main.py` starts polling, creates Web3, starts the scheduler, and registers a cycle job for each user who completes onboarding
+- Every command is live: /dashboard, /allocate, /explore, /alerts, /history, /export, /settings, /reset, /watch, /help
+- The /watch conversation guides users through identifier → threshold type → threshold value in 3 steps
+- Settings pause toggle is wired to `bot_scheduler.pause_user_job()` / `resume_user_job()`
+- Reset is wired to `bot_scheduler.remove_user_job()`
+
+### Notes
+- `/allocate` and `action_confirm_*` use `asyncio.get_running_loop().run_in_executor(None, run_cycle, ...)` to call the synchronous dispatcher from the asyncio bot thread without blocking the event loop.
+- `context.user_data["explore_snapshot"]` stores the MarketSnapshot from the last `/explore` call. Pool detail callbacks read from this cache rather than making a live RPC call.
+- The `filter_pools_by_strategy(pools, strategy, analysis_result=None)` call in `/explore` passes `None` for analysis_result (no previous snapshot available at browse time). This is correct: the anomaly-exclusion filter only applies when there is a delta to compare against.
+- The `watch_conversation_handler` uses `per_message=False` — the PTBUserWarning on startup is expected and informational, not an error.
+- `_send_history_page` and `_send_explore_page` are private helpers in `commands.py` used by both the command handlers and the callback pagination handlers to avoid code duplication.
+- Sprint 11 is the final sprint. The bot is feature-complete for the NEA.
 - Live test: 37 pools fetched, AGGRESSIVE_ALPHA strategy, ALLOCATE decision, 1 notify call with formatted decision summary.

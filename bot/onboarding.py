@@ -594,15 +594,29 @@ async def receive_final_confirm(
         session.chat_id, strategy.name,
     )
 
-    # TODO Sprint 10: start_scheduler(session, w3, notifier_callback)
+    # Register the recurring cycle job now that the session exists.
+    w3 = context.application.bot_data.get("w3")
+    notify_func = context.application.bot_data.get("notify_func")
+    if w3 is not None and notify_func is not None:
+        from core.dispatcher import build_cycle_callback
+        from core.scheduler import bot_scheduler
+        callback = build_cycle_callback(session, notify_func, w3)
+        bot_scheduler.add_user_job(session.chat_id, callback)
+        logger.info("Scheduler job registered for chat_id %d.", session.chat_id)
+    else:
+        logger.warning(
+            "w3 or notify_func not available in bot_data — "
+            "scheduler job NOT registered for chat_id %d.",
+            session.chat_id,
+        )
 
     await query.edit_message_text(
         f"🎉 *All set\\!*\n\n"
         f"Wallet: `{escape_md(short_address(session.wallet_address))}`\n"
         f"Strategy: *{escape_md(strategy.name)}*\n\n"
-        f"The bot is ready\\. Use the menu below to explore pools, "
-        f"allocate funds, or check your dashboard\\.\n\n"
-        f"_The automated scheduler will start once you run_ /allocate _for the first time\\._",
+        f"The bot is running\\. The scheduler will analyse pools every cycle "
+        f"and notify you of decisions\\. Use the menu below to explore pools, "
+        f"allocate funds, or check your dashboard\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=main_menu_keyboard(),
     )

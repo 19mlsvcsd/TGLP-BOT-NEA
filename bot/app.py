@@ -6,7 +6,8 @@ Telegram bot application setup and polling loop.
 This module is the integration point for the entire bot/ package. It:
 1. Builds the python-telegram-bot Application object with the bot token.
 2. Registers all handlers in the correct priority order.
-3. Starts the polling loop (blocking call — runs until Ctrl+C).
+3. Wires up the Web3 connection, notify_func, and BotScheduler via post_init.
+4. Starts the polling loop (blocking call — runs until Ctrl+C).
 
 Handler registration order matters in python-telegram-bot:
 - ConversationHandlers must be registered BEFORE generic CommandHandlers,
@@ -18,6 +19,7 @@ Role in the system: main.py calls start_bot() here. Nothing else calls
 this module. All other modules are decoupled from the Application object.
 """
 
+import asyncio
 import logging
 import os
 
@@ -46,6 +48,71 @@ from bot.onboarding import onboarding_handler
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Lifecycle hooks
+# ---------------------------------------------------------------------------
+
+async def _post_init(application: Application) -> None:
+    """
+    Called by python-telegram-bot after the Application is fully initialised
+    but before polling starts.
+
+    Responsibilities:
+      1. Connect to BSC Testnet via Web3 and store the instance in bot_data
+         so every command handler can access it without creating its own
+         connection.
+      2. Build a notify_func closure that bridges the APScheduler background
+         thread to the asyncio event loop via run_coroutine_threadsafe.
+      3. Start the BotScheduler background thread.
+
+    All data is stored in application.bot_data so handlers can retrieve it
+    with:  context.application.bot_data["w3"]
+           context.application.bot_data["notify_func"]
+    """
+    from helpers.blockchain import get_web3
+    from core.scheduler import bot_scheduler
+
+    # Web3 connection — one instance shared across all cycles and commands.
+    w3 = get_web3()
+    application.bot_data["w3"] = w3
+
+    # Capture the running event loop and the bot reference so the closure
+    # can schedule Telegram sends from the APScheduler background thread.
+    loop = asyncio.get_event_loop()
+    bot_obj = application.bot
+
+    def notify_func(chat_id: int, text: str) -> None:
+        """
+        Send a Telegram message from any thread.
+
+        The dispatcher calls this from APScheduler's background thread.
+        run_coroutine_threadsafe queues the coroutine on the asyncio loop
+        that owns the Telegram bot connection.
+        """
+        asyncio.run_coroutine_threadsafe(
+            bot_obj.send_message(chat_id=chat_id, text=text),
+            loop,
+        )
+
+    application.bot_data["notify_func"] = notify_func
+
+    # Start the background scheduler — safe to call even if already started.
+    bot_scheduler.start()
+    logger.info("post_init complete: Web3 connected, notify_func ready, scheduler started.")
+
+
+async def _post_shutdown(application: Application) -> None:
+    """
+    Called by python-telegram-bot during graceful shutdown.
+
+    Stops the BotScheduler so all pending cycle jobs are cancelled and the
+    background thread exits cleanly.
+    """
+    from core.scheduler import bot_scheduler
+    bot_scheduler.shutdown()
+    logger.info("post_shutdown: scheduler stopped.")
+
+
 def _build_application() -> Application:
     """
     Construct and configure the Application instance.
@@ -63,7 +130,13 @@ def _build_application() -> Application:
             "This should have been caught by main.py — check check_env()."
         )
 
-    app = Application.builder().token(token).build()
+    app = (
+        Application.builder()
+        .token(token)
+        .post_init(_post_init)
+        .post_shutdown(_post_shutdown)
+        .build()
+    )
 
     # ── Register handlers ─────────────────────────────────────────────────
     # Order is significant. Handlers are checked in registration order.

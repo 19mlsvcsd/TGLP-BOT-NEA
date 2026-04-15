@@ -1,7 +1,7 @@
 """
 bot/callbacks.py
 ================
-Inline button callback handlers for TGLP Bot.
+Inline button callback handlers for TGLP Bot — Sprint 11 fully wired.
 
 Handles CallbackQuery updates that originate from inline keyboards outside
 of active ConversationHandlers. The onboarding conversation handles its own
@@ -14,13 +14,10 @@ buttons internally — this module handles everything else:
 - Watchlist management (alert_*, watch_*)
 - Action confirmation for non-auto-execute mode (action_*)
 - /reset confirmation (reset_*)
-
-Most of these are stubs that will be wired to real logic in Sprint 11.
-The pattern is consistent so Sprint 11 only needs to fill in the body,
-not restructure any handler registration.
 """
 
 import logging
+import math
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -30,6 +27,9 @@ from core.strategy_manager import session_manager
 from helpers.formatters import escape_md
 
 logger = logging.getLogger(__name__)
+
+# Matches _HISTORY_PAGE_SIZE in commands.py
+_HISTORY_PAGE_SIZE = 5
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +51,6 @@ async def handle_callback(
     query = update.callback_query
     data = query.data or ""
 
-    # Route by prefix.
     if data.startswith("cmd_"):
         await _handle_menu(query, update, context)
     elif data.startswith("cfg_"):
@@ -99,8 +98,6 @@ async def _handle_menu(query, update: Update, context: ContextTypes.DEFAULT_TYPE
     }
     handler = command_map.get(query.data)
     if handler:
-        # Create a synthetic update with a message so command handlers work
-        # the same way whether triggered by a slash command or a button.
         await handler(update, context)
     else:
         await query.edit_message_text(
@@ -118,8 +115,7 @@ async def _handle_settings(query, update: Update, context: ContextTypes.DEFAULT_
     Handle settings panel button presses.
 
     Toggling compound/autoexec updates the session immediately and refreshes
-    the settings keyboard to reflect the new state. Strategy and slippage
-    changes will be implemented as conversations in Sprint 11.
+    the settings keyboard. Toggling pause also pauses/resumes the scheduler job.
     """
     await query.answer()
     chat_id = update.effective_chat.id
@@ -145,12 +141,21 @@ async def _handle_settings(query, update: Update, context: ContextTypes.DEFAULT_
         await query.answer(f"Switched to {mode}.", show_alert=False)
 
     elif data == "cfg_toggle_pause":
+        from core.scheduler import bot_scheduler
         session.paused = not session.paused
-        state = "paused" if session.paused else "resumed"
-        await query.answer(f"Bot {state}.", show_alert=False)
+        if session.paused:
+            bot_scheduler.pause_user_job(chat_id)
+            await query.answer("Bot paused.", show_alert=False)
+        else:
+            bot_scheduler.resume_user_job(chat_id)
+            await query.answer("Bot resumed.", show_alert=False)
 
     elif data in ("cfg_change_strategy", "cfg_change_slippage"):
-        await query.answer("Coming in Sprint 11.", show_alert=True)
+        # Strategy and slippage editing require a full conversation — not yet implemented.
+        await query.answer(
+            "Strategy/slippage editing is not yet available in this build.",
+            show_alert=True,
+        )
         return
 
     # Refresh settings panel to show updated toggle states.
@@ -168,30 +173,147 @@ async def _handle_settings(query, update: Update, context: ContextTypes.DEFAULT_
 # ---------------------------------------------------------------------------
 
 async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Pool detail view and back-navigation. Full implementation in Sprint 11."""
+    """
+    Pool detail view and back-navigation.
+
+    Pool detail lookups use the snapshot stored in context.user_data by
+    explore_command() (key: "explore_snapshot"), so they always reflect the
+    data that was on screen when the user tapped the pool button.
+    """
     await query.answer()
     data = query.data
+    chat_id = update.effective_chat.id
+    session = session_manager.get(chat_id)
 
     if data == "pool_back_list":
+        # Re-render the explore list using the cached snapshot and scored list.
+        snapshot = context.user_data.get("explore_snapshot")
+        if snapshot is None or session is None:
+            await query.edit_message_text(
+                "🔍 *Pool Explorer*\n\n"
+                "_No cached pool data\\. Run /explore to refresh\\._",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        from core.decision_engine import filter_pools_by_strategy, score_pools
+        from helpers.formatters import format_pool_info
+        from bot.keyboards import pool_list_keyboard
+
+        filtered = filter_pools_by_strategy(snapshot.pools, session.active_strategy, None)
+        scored = score_pools(filtered)
+
+        page = 0
+        page_size = 5
+        total_pages = max(1, math.ceil(len(scored) / page_size))
+        page_pools = scored[page * page_size: (page + 1) * page_size]
+
+        lines = [
+            f"🔍 *Pool Explorer*\n"
+            f"Strategy: *{escape_md(session.active_strategy.name)}* — "
+            f"{escape_md(str(len(scored)))} pools matched\n"
+        ]
+        for i, sp in enumerate(page_pools):
+            pool_dict = {
+                "pool":       sp.pool.pool,
+                "symbol":     sp.pool.symbol,
+                "apr":        sp.pool.apr,
+                "tvl_usd":    sp.pool.tvl_usd,
+                "volume_24h": sp.pool.volume_24h,
+                "fee_tier":   sp.pool.fee_tier,
+                "pair_type":  sp.pool.pair_type,
+            }
+            lines.append(format_pool_info(pool_dict, rank=i + 1))
+            lines.append("")
+
+        text = "\n".join(lines)
+        pool_dicts = [{"symbol": sp.pool.symbol, "pool": sp.pool.pool} for sp in page_pools]
+        keyboard = pool_list_keyboard(pool_dicts, page, total_pages)
         await query.edit_message_text(
-            "🔍 *Pool Explorer*\n\n"
-            "_Returning to list \\— full implementation in Sprint 11\\._",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard
         )
+
     elif data.startswith("pool_detail_"):
         addr_fragment = data.replace("pool_detail_", "")
+        snapshot = context.user_data.get("explore_snapshot")
+        pool_data = None
+        if snapshot:
+            for p in snapshot.pools:
+                if p.pool[:20] == addr_fragment or p.pool.startswith(addr_fragment):
+                    pool_data = p
+                    break
+
+        if pool_data is None:
+            await query.edit_message_text(
+                f"📊 *Pool Details*\n\n"
+                f"`{escape_md(addr_fragment)}\\.\\.\\. `\n\n"
+                "_Pool not found in cached data\\. Run /explore to refresh\\._",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        from helpers.formatters import format_pool_info
+        from bot.keyboards import pool_detail_keyboard
+
+        pool_dict = {
+            "pool":       pool_data.pool,
+            "symbol":     pool_data.symbol,
+            "apr":        pool_data.apr,
+            "tvl_usd":    pool_data.tvl_usd,
+            "volume_24h": pool_data.volume_24h,
+            "fee_tier":   pool_data.fee_tier,
+            "pair_type":  pool_data.pair_type,
+        }
+        text = f"📊 *Pool Details*\n\n{format_pool_info(pool_dict)}"
         await query.edit_message_text(
-            f"📊 *Pool Details*\n\n"
-            f"Address fragment: `{escape_md(addr_fragment)}`\n\n"
-            "_Full pool detail view coming in Sprint 11\\._",
+            text,
             parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=pool_detail_keyboard(pool_data.pool),
         )
+
     elif data.startswith("pool_page_"):
         page = int(data.replace("pool_page_", ""))
+        snapshot = context.user_data.get("explore_snapshot")
+        if snapshot is None or session is None:
+            await query.edit_message_text(
+                "🔍 *Pool Explorer*\n\n_Run /explore to refresh\\._",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        from core.decision_engine import filter_pools_by_strategy, score_pools
+        from helpers.formatters import format_pool_info
+        from bot.keyboards import pool_list_keyboard
+
+        filtered = filter_pools_by_strategy(snapshot.pools, session.active_strategy, None)
+        scored = score_pools(filtered)
+
+        page_size = 5
+        total_pages = max(1, math.ceil(len(scored) / page_size))
+        page_pools = scored[page * page_size: (page + 1) * page_size]
+
+        lines = [
+            f"🔍 *Pool Explorer* — Page {page + 1}/{total_pages}\n"
+            f"Strategy: *{escape_md(session.active_strategy.name)}*\n"
+        ]
+        for i, sp in enumerate(page_pools):
+            pool_dict = {
+                "pool":       sp.pool.pool,
+                "symbol":     sp.pool.symbol,
+                "apr":        sp.pool.apr,
+                "tvl_usd":    sp.pool.tvl_usd,
+                "volume_24h": sp.pool.volume_24h,
+                "fee_tier":   sp.pool.fee_tier,
+                "pair_type":  sp.pool.pair_type,
+            }
+            lines.append(format_pool_info(pool_dict, rank=page * page_size + i + 1))
+            lines.append("")
+
+        text = "\n".join(lines)
+        pool_dicts = [{"symbol": sp.pool.symbol, "pool": sp.pool.pool} for sp in page_pools]
+        keyboard = pool_list_keyboard(pool_dicts, page, total_pages)
         await query.edit_message_text(
-            f"🔍 *Pool Explorer — Page {page + 1}*\n\n"
-            "_Pagination fully wired in Sprint 11\\._",
-            parse_mode=ParseMode.MARKDOWN_V2,
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=keyboard
         )
 
 
@@ -200,17 +322,51 @@ async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE
 # ---------------------------------------------------------------------------
 
 async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """History page navigation. Full implementation in Sprint 11."""
+    """Navigate history pages using the database."""
     await query.answer()
     data = query.data
 
-    if data.startswith("hist_page_"):
-        page = int(data.replace("hist_page_", ""))
+    if not data.startswith("hist_page_"):
+        return
+
+    page = int(data.replace("hist_page_", ""))
+    chat_id = update.effective_chat.id
+    session = session_manager.get(chat_id)
+
+    if not session:
         await query.edit_message_text(
-            f"📜 *Transaction History — Page {page + 1}*\n\n"
-            "_History pagination fully wired in Sprint 11\\._",
+            "⚠️ Session not found\\. Run /start to set up\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
+        return
+
+    from helpers.database import get_trades_for_user, count_trades_for_user
+    from helpers.formatters import format_tx_summary
+    from bot.keyboards import history_keyboard
+
+    total = count_trades_for_user(session.chat_id)
+    total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
+    trades = get_trades_for_user(
+        session.chat_id,
+        limit=_HISTORY_PAGE_SIZE,
+        offset=page * _HISTORY_PAGE_SIZE,
+    )
+
+    header = (
+        f"📜 *Transaction History* — Page {page + 1}/{total_pages} "
+        f"\\({escape_md(str(total))} total\\)\n"
+    )
+    lines = [header]
+    for trade in trades:
+        lines.append(format_tx_summary(trade))
+        lines.append("")
+
+    text = "\n".join(lines)
+    await query.edit_message_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=history_keyboard(page, total_pages),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -218,23 +374,66 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
 # ---------------------------------------------------------------------------
 
 async def _handle_watchlist(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Watchlist add/remove callbacks. Full implementation in Sprint 11."""
+    """Watchlist alert removal and watch-add-from-explore callbacks."""
     await query.answer()
     data = query.data
+    chat_id = update.effective_chat.id
 
     if data.startswith("alert_remove_"):
-        watch_id = data.replace("alert_remove_", "")
-        await query.edit_message_text(
-            f"🗑 Removing alert ID `{escape_md(watch_id)}`\\.\n\n"
-            "_Full watchlist management in Sprint 11\\._",
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        # Parse the integer watch_id embedded in the callback data.
+        try:
+            watch_id = int(data.replace("alert_remove_", ""))
+        except ValueError:
+            await query.edit_message_text(
+                "⚠️ Invalid alert ID\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        session = session_manager.get(chat_id)
+        if not session:
+            await query.edit_message_text(
+                "⚠️ Session not found\\. Run /start to set up\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        from core.watchlist import remove_watch_item, load_watchlist
+        removed = remove_watch_item(session, watch_id)
+
+        if not removed:
+            await query.answer("Alert not found or already removed.", show_alert=True)
+            return
+
+        # Refresh and re-render the alerts panel.
+        load_watchlist(session)
+        count = len(session.watchlist)
+
+        if count == 0:
+            await query.edit_message_text(
+                "🔔 *Active Alerts*\n\n"
+                "You have no active watchlist alerts\\.\n\n"
+                "Use /watch to add a pool or token to monitor\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        else:
+            from bot.keyboards import watchlist_keyboard
+            await query.edit_message_text(
+                f"🗑 Alert removed\\.\n\n"
+                f"🔔 *Active Alerts* \\({escape_md(str(count))}\\)\n\n"
+                f"Tap *Remove* next to an alert to delete it\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+                reply_markup=watchlist_keyboard(session.watchlist),
+            )
+
     elif data.startswith("watch_add_"):
+        # "Add to watchlist" button from a pool detail view.
+        # Redirect the user to the /watch conversation with the address pre-filled.
         addr_fragment = data.replace("watch_add_", "")
         await query.edit_message_text(
             f"👁 *Add to Watchlist*\n\n"
             f"Pool: `{escape_md(addr_fragment)}\\.\\.\\. `\n\n"
-            "_Watch setup conversation coming in Sprint 11\\._",
+            f"Run /watch and enter this pool address to set an alert threshold\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
 
@@ -247,24 +446,55 @@ async def _handle_action_confirm(query, update: Update, context: ContextTypes.DE
     """
     Handle user confirmation or skip for proposed LP actions.
 
-    When auto_execute is False, the dispatcher sends a proposal message
-    with an action_confirm_keyboard. The user taps Confirm or Skip here.
-    Full implementation in Sprint 11 (requires dispatcher from Sprint 10).
+    When auto_execute is False, the dispatcher sends a proposal via
+    format_decision_summary() with an action_confirm_keyboard. The user
+    confirms or skips here.
+
+    Note: confirming re-runs the full cycle rather than caching and replaying
+    the specific decision. This means a brief market update between the
+    proposal and the confirmation might change the final action — which is
+    the correct and safe behaviour for a live trading bot.
     """
     await query.answer()
     data = query.data
+    chat_id = update.effective_chat.id
 
     if data.startswith("action_confirm_"):
-        action_id = data.replace("action_confirm_", "")
+        session = session_manager.get(chat_id)
+        if not session:
+            await query.edit_message_text(
+                "⚠️ Session not found\\. Run /start to set up\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        if not session.is_operational():
+            await query.edit_message_text(
+                "⚠️ Bot is paused or safety\\-locked\\. Cannot execute\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            return
+
+        w3 = context.application.bot_data.get("w3")
+        notify_func = context.application.bot_data.get("notify_func")
+
         await query.edit_message_text(
-            f"✅ Action `{escape_md(action_id)}` confirmed\\.\n\n"
-            "_Execution pipeline wired in Sprint 11\\._",
+            "⏳ Confirmed\\. Running execution cycle\\.\\.\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
+
+        import asyncio
+        from core.dispatcher import run_cycle
+
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, run_cycle, session, notify_func, w3)
+        except Exception as exc:
+            logger.exception("action_confirm: cycle raised: %s", exc)
+
     elif data.startswith("action_skip_"):
-        action_id = data.replace("action_skip_", "")
         await query.edit_message_text(
-            f"⏭ Action `{escape_md(action_id)}` skipped\\.",
+            "⏭ Action skipped\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
 
@@ -277,8 +507,8 @@ async def _handle_reset(query, update: Update, context: ContextTypes.DEFAULT_TYP
     """
     Handle the /reset confirmation keyboard.
 
-    On confirm: deletes the session (stops scheduler in Sprint 10) and
-    sends a farewell message. On cancel: dismisses the keyboard.
+    On confirm: removes the scheduler job, deletes the session, and sends
+    a farewell message. On cancel: dismisses the keyboard.
     """
     await query.answer()
     chat_id = update.effective_chat.id
@@ -286,7 +516,8 @@ async def _handle_reset(query, update: Update, context: ContextTypes.DEFAULT_TYP
     if query.data == "reset_confirm_yes":
         session = session_manager.get(chat_id)
         if session:
-            # TODO Sprint 10: stop_scheduler(session)
+            from core.scheduler import bot_scheduler
+            bot_scheduler.remove_user_job(chat_id)
             wallet = session.wallet_address
             session_manager.delete(chat_id)
             logger.info("User %d reset their session (wallet %s)", chat_id, wallet)
