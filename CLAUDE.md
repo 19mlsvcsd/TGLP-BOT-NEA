@@ -562,5 +562,61 @@ project state before making any changes.
 - The `filter_pools_by_strategy(pools, strategy, analysis_result=None)` call in `/explore` passes `None` for analysis_result (no previous snapshot available at browse time). This is correct: the anomaly-exclusion filter only applies when there is a delta to compare against.
 - The `watch_conversation_handler` uses `per_message=False` — the PTBUserWarning on startup is expected and informational, not an error.
 - `_send_history_page` and `_send_explore_page` are private helpers in `commands.py` used by both the command handlers and the callback pagination handlers to avoid code duplication.
-- Sprint 11 is the final sprint. The bot is feature-complete for the NEA.
 - Live test: 37 pools fetched, AGGRESSIVE_ALPHA strategy, ALLOCATE decision, 1 notify call with formatted decision summary.
+
+---
+
+## Sprint 12 — Integration Testing & Polish — 2026-04-15
+
+### Completed
+- Wrote five module-named unit test files for NEA assessment traceability:
+  - `tests/test_validators.py`: 37 tests covering all 8 functions in `helpers/validators.py`
+  - `tests/test_analyser.py`: 16 tests covering `core/analyser.py` — corrected to match actual `AnalysisResult` field names (`pool_deltas`, `anomalous_addresses` as set, `pools_new`/`pools_dropped` as ints, `first_run`)
+  - `tests/test_decision_engine.py`: 16 tests covering `core/decision_engine.py` — corrected to use actual `ScoredPool` fields (`norm_apr`, `norm_tvl`, `score`) and `DecisionResult` constructor
+  - `tests/test_portfolio.py`: 17 tests covering `core/portfolio.py`
+  - `tests/test_safety.py`: 20 tests covering `core/safety.py` (19 unit + 1 live BSC Testnet gas-price check)
+- Wrote `tests/test_sprint12.py`: 18 end-to-end integration tests (17 unit + 1 live BSC Testnet pipeline)
+  - Session creation, snapshot filter/score, first/second cycle analysis, decision engine, run_cycle (paused/locked/proposal/snapshot/empty), portfolio summary, P&L, history (empty/insert/paginate), build_cycle_callback, _build_position_dict, live full pipeline
+- Polished bot message formatting:
+  - Fixed hardcoded `"safety\\-locked"` in `bot/commands.py` and `bot/callbacks.py` — now uses `escape_md("safety-locked")` for consistency
+  - All error paths already had `❌`, `⚠️`, `✅`, `⏳` status indicators from Sprint 11
+- Completed `README.md`: full project overview, setup instructions, command reference, strategy table, architecture diagram, database schema, known limitations
+- Final `CLAUDE.md` update (this entry)
+
+### Key Discovery: AnalysisResult interface
+The test files written in Sprint 12 required careful comparison against the actual `core/analyser.py` implementation. The CLAUDE.md Sprint 5 notes described a slightly different interface than what was built. Actual fields:
+- `pool_deltas: List[PoolDelta]` (not a dict named `deltas`)
+- `anomalous_addresses: set` (not a list)
+- `pools_new: int`, `pools_dropped: int` (not lists)
+- `first_run: bool` (indicates no previous snapshot)
+- `detect_anomalies(delta)` returns `List[str]` (not a mutated PoolDelta)
+- `get_pool_stability_score(address, delta_history)` takes `List[PoolDelta]` (not list of dicts)
+
+### Files Created/Modified
+- `tests/test_validators.py` — NEW: 37 unit tests
+- `tests/test_analyser.py` — NEW (corrected): 16 unit tests
+- `tests/test_decision_engine.py` — NEW (corrected): 16 unit tests
+- `tests/test_portfolio.py` — NEW: 17 unit tests
+- `tests/test_safety.py` — NEW: 20 tests (19 unit + 1 live)
+- `tests/test_sprint12.py` — NEW: 18 tests (17 unit + 1 live)
+- `bot/commands.py` — escape_md fix for "safety-locked"
+- `bot/callbacks.py` — escape_md fix for "safety-locked"
+- `README.md` — complete project documentation
+
+### Tested
+- All 37 validator tests pass
+- All 16 analyser tests pass
+- All 16 decision engine tests pass
+- All 17 portfolio tests pass
+- All 19 safety unit tests pass (live Tier 2 requires BSC Testnet)
+- All 17 Sprint 12 unit tests pass (live Tier 2 requires BSC Testnet)
+
+### Current State
+- **Project is complete.** All 12 sprints have been implemented and tested.
+- The bot is fully functional: `python main.py` starts polling, creates Web3, starts the scheduler, and registers cycle jobs for onboarded users.
+- All test files run without network access for Tier 1 tests; Tier 2 live tests require BSC Testnet connectivity.
+
+### Notes
+- The `detect_anomalies(delta)` function returns a `List[str]` (anomaly descriptions), not a modified `PoolDelta`. The caller in `analyse_cycle` checks if the list is non-empty, then sets `delta.is_anomalous = True` and populates `delta.anomaly_descriptions`.
+- All database test functions use explicit `db_path=path` parameters (not monkeypatching) because Python default argument values are evaluated at definition time, making module-level constant monkeypatching unreliable for functions with `db_path: str = DB_FILENAME` defaults.
+- Sprint 12 is the final sprint. The bot is feature-complete for the NEA.

@@ -469,8 +469,9 @@ async def _handle_action_confirm(query, update: Update, context: ContextTypes.DE
             return
 
         if not session.is_operational():
+            state = escape_md("paused") if session.paused else escape_md("safety-locked")
             await query.edit_message_text(
-                "⚠️ Bot is paused or safety\\-locked\\. Cannot execute\\.",
+                f"⚠️ Bot is {state}\\. Cannot execute\\.",
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
             return

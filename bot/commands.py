@@ -184,7 +184,7 @@ async def allocate_command(
     session = session_manager.get(update.effective_chat.id)
 
     if not session.is_operational():
-        state = "paused" if session.paused else "safety\\-locked"
+        state = escape_md("paused") if session.paused else escape_md("safety-locked")
         await update.message.reply_text(
             f"⚠️ Bot is {state}\\. Cannot run a cycle\\.\n\n"
             f"Use /settings to resume or clear the safety lock\\.",
