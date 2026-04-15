@@ -335,8 +335,7 @@ project state before making any changes.
 - Real LP transactions require funded testnet wallet — not tested end-to-end (by design)
 
 ### Next Sprint
-- Sprint 8: Safety Controller
-  - `core/safety.py`: gas price guard, position size limits, emergency pause, safety lock, anomaly threshold escalation
+- Sprint 8: complete — see entry below.
 
 ### Notes
 - **web3.py v7 API**: Use `contract.encode_abi("functionName", args=[params])` (snake_case). The v6 `contract.encodeABI(fn_name=...)` method does not exist in v7.6.0.
@@ -344,3 +343,55 @@ project state before making any changes.
 - Tick range: executor uses ±10 × tickSpacing around currentTick. This is wide enough to capture price movement on testnet while remaining a bounded range. Adjust the multiplier in `execute_allocate` for mainnet use.
 - `amountOutMinimum = 0` in swap_exact_input_single is intentional for testnet shallow liquidity. Set this to an oracle-derived minimum on mainnet.
 - `execute_compound` uses `increaseLiquidity` (same position, same NFT token ID) — not burn+remint. This preserves the position's fee accrual history.
+
+---
+
+## Sprint 8 — Safety Controller — 2026-04-15
+
+### Completed
+- Added three new constants to `config/settings.py`:
+  - `MAX_GAS_PRICE_GWEI = 20.0` — hard execution ceiling (double the warning level)
+  - `MAX_POSITION_FRACTION = 0.90` — maximum fraction of wallet per LP position
+  - `SAFETY_ANOMALY_LOCK_THRESHOLD = 3` — consecutive anomaly cycles before safety lock
+- Implemented `core/safety.py`:
+  - `SafetyCheckResult` dataclass: `passed`, `check_name`, `reason` (empty string when passing)
+  - `SafetyController` class:
+    - `check_gas_price(w3, max_gwei)`: reads live gas price, blocks if above `MAX_GAS_PRICE_GWEI`
+    - `check_position_size(amount_bnb, wallet_balance_bnb, max_fraction)`: blocks if allocation exceeds `MAX_POSITION_FRACTION` of wallet; also handles zero-balance wallet
+    - `check_gas_reserve(wallet_balance_bnb, amount_bnb)`: blocks if remaining balance after allocation < `MIN_BNB_FOR_GAS`
+    - `check_session_state(session)`: blocks if session is safety-locked or paused
+    - `run_pre_execution_checks(w3, session, amount_bnb, wallet_balance_bnb)`: runs all four checks in order (cheapest first); returns first failure or passed; accepts optional `wallet_balance_bnb` override for testing
+    - `trigger_emergency_pause(session, reason)`: sets `session.safety_locked = True`, logs at ERROR level
+    - `clear_safety_lock(session)`: clears `session.safety_locked = False`
+    - `record_anomaly_cycle(session, has_anomalies)`: increments per-user consecutive anomaly counter; resets on clean cycle; calls `trigger_emergency_pause` when threshold reached
+    - `reset_anomaly_counter(chat_id)`: manually resets counter (called on safety lock clear)
+    - `get_system_health(w3)`: returns dict with `connected`, `chain_id`, `block_number`, `gas_price_gwei`, `rpc_latency_ms`, `safe_to_trade`
+  - `safety_controller` module-level singleton
+- Created `tests/test_sprint8.py`: 16 tests across two tiers
+
+### Files Created/Modified
+- `config/settings.py` — 3 new safety constants
+- `core/safety.py` — full safety controller
+- `tests/test_sprint8.py` — Sprint 8 test suite
+
+### Tested
+- Unit: SafetyCheckResult defaults, position_size pass/fail (including zero balance edge case), gas_reserve pass/fail, session_state operational/paused/locked, trigger_emergency_pause, clear_safety_lock, anomaly escalation to lock on 3rd cycle, anomaly counter reset on clean cycle
+- Read-only on-chain: check_gas_price on live testnet (0.100 Gwei, well below 20 Gwei limit passes), get_system_health (block 101770626, latency ~78 ms, safe_to_trade=True), run_pre_execution_checks with paused session (blocked at session_state), run_pre_execution_checks with wallet_balance_bnb=0.0 (blocked at gas_reserve)
+
+### Current State
+- Safety controller is fully implemented
+- `run_pre_execution_checks` is ready to be called by the dispatcher before every execution cycle
+- Anomaly escalation integrates with `record_anomaly_cycle` — dispatcher calls this after each `analyse_cycle`
+- `get_system_health` is ready for the /status command (Sprint 11)
+
+### Next Sprint
+- Sprint 9: Portfolio & Watchlist
+  - `core/portfolio.py`: P&L tracking, unrealised gain/loss calculation, position value in BNB and USD
+  - `core/watchlist.py`: watchlist CRUD bridging in-memory session state and SQLite
+  - `core/alerts.py`: threshold-based price/APR alerts for watchlist items
+
+### Notes
+- `run_pre_execution_checks` check order: session_state → gas_price → gas_reserve → position_size. Session and gas checks come before balance reads so the cheapest failures are caught first.
+- `wallet_balance_bnb` optional parameter on `run_pre_execution_checks` allows the dispatcher to pass a pre-read balance (saving one RPC call) or tests to inject a specific value without needing a funded address.
+- Precompile address `0x000...001` has non-zero BNB on BSC Testnet — do not use it as a "zero balance" test address. Pass `wallet_balance_bnb=0.0` directly instead.
+- `_consecutive_anomalies` dict is keyed by `chat_id` (int). The counter persists for the lifetime of the process; `reset_anomaly_counter` should be called whenever the user clears a safety lock.

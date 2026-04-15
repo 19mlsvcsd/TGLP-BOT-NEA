@@ -115,6 +115,18 @@ MIN_BNB_FOR_GAS: float = 0.005  # BNB
 # BSC Testnet gas prices are typically very low; this acts as a sanity check.
 GAS_PRICE_WARNING_GWEI: float = 10.0
 
+# Hard ceiling on gas price — execution is blocked above this level.
+# Set to twice the warning threshold as a conservative hard stop.
+MAX_GAS_PRICE_GWEI: float = 20.0
+
+# Maximum fraction of the wallet balance that may be placed into a single
+# LP position. Prevents the bot from putting all funds at risk in one trade.
+MAX_POSITION_FRACTION: float = 0.90  # 90%
+
+# Number of consecutive anomalous market cycles before the safety controller
+# engages a safety lock on the session. Prevents acting on sustained bad data.
+SAFETY_ANOMALY_LOCK_THRESHOLD: int = 3
+
 # Gas limits for common operations. These are conservative upper bounds;
 # actual gas usage will usually be lower.
 GAS_LIMIT_APPROVE: int = 60_000
