@@ -42,7 +42,7 @@ from bot.commands import (
     settings_command,
     watch_command,
 )
-from bot.conversations import watch_conversation_handler
+from bot.conversations import custom_strategy_handler, watch_conversation_handler
 from bot.onboarding import onboarding_handler
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,12 @@ def _build_application() -> Application:
     #    stub so that the conversation takes over when the user is mid-flow.
     app.add_handler(watch_conversation_handler)
 
-    # 3. Standalone command handlers.
+    # 3. /customstrategy ConversationHandler — before the catch-all callback
+    #    handler so that cfg_strat_custom and cs_* callbacks are intercepted
+    #    when the conversation is active.
+    app.add_handler(custom_strategy_handler)
+
+    # 4. Standalone command handlers.
     app.add_handler(CommandHandler("dashboard", dashboard_command))
     app.add_handler(CommandHandler("allocate",  allocate_command))
     app.add_handler(CommandHandler("explore",   explore_command))
@@ -160,7 +165,7 @@ def _build_application() -> Application:
     app.add_handler(CommandHandler("reset",     reset_command))
     app.add_handler(CommandHandler("help",      help_command))
 
-    # 4. Catch-all CallbackQueryHandler — must be LAST. Handles all inline
+    # 5. Catch-all CallbackQueryHandler — must be LAST. Handles all inline
     #    button presses that are not owned by a ConversationHandler.
     app.add_handler(CallbackQueryHandler(handle_callback))
 

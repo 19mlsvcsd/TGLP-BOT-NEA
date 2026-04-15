@@ -620,3 +620,72 @@ The test files written in Sprint 12 required careful comparison against the actu
 - The `detect_anomalies(delta)` function returns a `List[str]` (anomaly descriptions), not a modified `PoolDelta`. The caller in `analyse_cycle` checks if the list is non-empty, then sets `delta.is_anomalous = True` and populates `delta.anomaly_descriptions`.
 - All database test functions use explicit `db_path=path` parameters (not monkeypatching) because Python default argument values are evaluated at definition time, making module-level constant monkeypatching unreliable for functions with `db_path: str = DB_FILENAME` defaults.
 - Sprint 12 is the final sprint. The bot is feature-complete for the NEA.
+
+---
+
+## Sprint 13 — Feature Completeness — 2026-04-15
+
+### Motivation
+A post-Sprint-12 spec review identified three features from the original build prompt that were missing or stubbed:
+1. Custom Strategy conversation handler (`custom_strategy_handler = None` placeholder)
+2. History filters (pagination existed but no action-type filter UI)
+3. BNB price-change alerts (only APR/TVL thresholds supported; no `price_change_pct`)
+
+### Completed
+
+#### Feature 1: Custom Strategy Conversation Handler
+- Replaced `custom_strategy_handler = None` stub in `bot/conversations.py` with a fully implemented 7-state `ConversationHandler`
+- States: CUST_PAIRS → CUST_MIN_TVL → CUST_SLIPPAGE → CUST_REBAL → CUST_COMPOUND → CUST_AUTOEXEC → CUST_CONFIRM
+- Entry points: `CommandHandler("customstrategy", ...)` + `CallbackQueryHandler(pattern="^cfg_strat_custom$", ...)`
+- Uses existing `custom_pairs_keyboard()` and `custom_compound_interval_keyboard()` from keyboards.py
+- On confirmation: builds a `StrategyConfig` from collected values and assigns to `session.active_strategy`, `session.auto_execute`, `session.compound_enabled`
+- Registered in `bot/app.py` before the catch-all CallbackQueryHandler (position 3, after onboarding and /watch)
+- Added `strategy_picker_keyboard()` to `bot/keyboards.py` (shows 4 strategies + Cancel, `cfg_strat_*` prefix)
+- Wired `cfg_change_strategy` in `bot/callbacks.py` to show `strategy_picker_keyboard()`
+- `cfg_strat_conservative/balanced/aggressive` handled in callbacks: updates session.active_strategy from `STRATEGY_PROFILES`, then refreshes settings panel
+- `cfg_strat_custom` handled by the conversation handler (entry point intercepts before catch-all); fallback message in callbacks for when conversation is not active
+
+#### Feature 2: History Filters
+- Updated `count_trades_for_user(user_chat_id, action_filter=None)` in `helpers/database.py` to accept an optional action filter
+- Added `history_filter_keyboard(page, total_pages, current_filter)` to `bot/keyboards.py` — three rows of filter buttons (All, Swap, Add LP, Remove LP, Collect, Compound) above the pagination row; active filter shown with bullet (•)
+- Updated `_send_history_page` in `bot/commands.py` to accept `context` parameter and `action_filter` parameter; reads `context.user_data["history_filter"]` if present
+- Updated `history_command` to clear stale filter on fresh `/history` invocation
+- Updated `_handle_history` in `bot/callbacks.py` to handle both `hist_filter_*` (set filter, reset to page 0) and `hist_page_*` (paginate with current filter) callbacks; stores active filter in `context.user_data["history_filter"]`
+
+#### Feature 3: BNB Price-Change Alerts
+- Added `previous_bnb_price: Optional[float] = None` field to `UserSession` in `core/strategy_manager.py`
+- Added `BNB price change ≥X%` button (callback `wt_price_change`) to `_threshold_type_keyboard()` in `bot/conversations.py`
+- Added `wt_price_change` → `price_change_pct` mapping in `watch_receive_threshold_type`
+- Updated confirmation message labels to include `price_change_pct` condition
+- Implemented `check_price_alerts(session, prices)` in `core/alerts.py`:
+  - Iterates `token` watchlist items with `threshold_type == "price_change_pct"` and `identifier == "BNB"`
+  - Compares `prices["BNB"]` against `session.previous_bnb_price`; fires Alert if abs % change ≥ threshold
+  - Updates `session.previous_bnb_price` at the end of every call (no alert on first cycle — no baseline yet)
+- Updated `check_all_alerts` in `core/alerts.py` to call `check_pool_alerts` + `check_price_alerts` and return combined list
+
+### Files Created/Modified
+- `helpers/database.py` — `count_trades_for_user` now accepts `action_filter`
+- `core/strategy_manager.py` — `UserSession.previous_bnb_price` field added
+- `core/alerts.py` — `check_price_alerts()` added; `check_all_alerts` calls both pool and price checkers
+- `bot/keyboards.py` — `strategy_picker_keyboard()` and `history_filter_keyboard()` added
+- `bot/conversations.py` — `_threshold_type_keyboard()` extended; `watch_receive_threshold_type` and `watch_receive_threshold_value` updated for `price_change_pct`; full `custom_strategy_handler` ConversationHandler implemented (7 states)
+- `bot/commands.py` — `_send_history_page` accepts filter; `history_command` clears stale filter
+- `bot/callbacks.py` — `_handle_settings` wired for strategy picker; `_handle_history` handles `hist_filter_*` and `hist_page_*`; `cs_` prefix fallback added to router
+- `bot/app.py` — `custom_strategy_handler` imported and registered at position 3
+
+### Tested
+- Imports: all new modules import cleanly (`py -c "from bot.conversations import custom_strategy_handler; ..."`)
+- PTBUserWarning for `custom_strategy_handler` (per_message=False) is expected/informational, consistent with other ConversationHandlers
+
+### Current State
+- **All three spec gaps are closed.** The bot now fully implements every feature described in the original build prompt:
+  - Custom strategy setup flow: /customstrategy or Settings → Change Strategy → Custom
+  - History pagination with action-type filter (All/Swap/Add LP/Remove LP/Collect/Compound)
+  - BNB price-change watchlist alerts alongside existing APR/TVL alerts
+- Sprint 13 is the final sprint.
+
+### Notes
+- `custom_strategy_handler` must be registered BEFORE the catch-all `CallbackQueryHandler` in `bot/app.py` so that `cfg_strat_custom` and `cs_confirm/cs_cancel` are captured when the conversation is active.
+- `previous_bnb_price` is `None` on first cycle. `check_price_alerts` stores the baseline without firing, so the first alert requires at least two cycles.
+- The `history_filter_keyboard` replaces `history_keyboard` in all display paths — existing code in `bot/commands.py` and `bot/callbacks.py` uses `history_filter_keyboard` directly.
+- `count_trades_for_user` default `action_filter=None` is backwards-compatible; all existing callers that don't pass the argument continue to work unchanged.

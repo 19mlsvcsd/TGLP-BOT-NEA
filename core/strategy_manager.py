@@ -111,6 +111,9 @@ class UserSession:
     # Scheduler handle — set by core/scheduler.py (Sprint 10)
     scheduler_job: Optional[Any] = None
 
+    # BNB price from the previous cycle — used by price-change alerts (Sprint 13)
+    previous_bnb_price: Optional[float] = None
+
     def has_position(self) -> bool:
         """Return True if the user currently holds an open LP position."""
         return self.current_position is not None and self.position_token_id is not None

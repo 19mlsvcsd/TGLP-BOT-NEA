@@ -413,40 +413,71 @@ async def history_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /history — paginated list of all transactions.
+    /history — paginated list of all transactions with action-type filter.
     """
     if not await _require_session(update):
         return
 
     session = session_manager.get(update.effective_chat.id)
-    await _send_history_page(update, session, page=0)
+    # Clear any stale filter when /history is called fresh.
+    context.user_data.pop("history_filter", None)
+    await _send_history_page(update, session, page=0, context=context)
 
 
-async def _send_history_page(update, session, page: int) -> None:
-    """Render one page of trade history and send it."""
+async def _send_history_page(
+    update,
+    session,
+    page: int,
+    context=None,
+    action_filter: str = "all",
+) -> None:
+    """
+    Render one page of trade history and send it.
+
+    Args:
+        update:        Telegram Update object.
+        session:       UserSession for the requesting user.
+        page:          0-based page index.
+        context:       ContextTypes.DEFAULT_TYPE — read history_filter from
+                       user_data if present (overrides action_filter arg).
+        action_filter: Active filter key; 'all' means no filter.
+    """
     from helpers.database import get_trades_for_user, count_trades_for_user
     from helpers.formatters import format_tx_summary
-    from bot.keyboards import history_keyboard
+    from bot.keyboards import history_filter_keyboard
 
-    total = count_trades_for_user(session.chat_id)
+    # Prefer the stored filter in context over the parameter.
+    if context is not None:
+        action_filter = context.user_data.get("history_filter", action_filter)
+
+    db_filter = None if action_filter == "all" else action_filter
+
+    total = count_trades_for_user(session.chat_id, action_filter=db_filter)
     total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
     trades = get_trades_for_user(
         session.chat_id,
         limit=_HISTORY_PAGE_SIZE,
         offset=page * _HISTORY_PAGE_SIZE,
+        action_filter=db_filter,
     )
 
     if not trades and page == 0:
+        filter_note = (
+            f" \\(filter: *{escape_md(action_filter)}*\\)" if action_filter != "all" else ""
+        )
         await update.message.reply_text(
-            "📜 *Transaction History*\n\n"
+            f"📜 *Transaction History*{filter_note}\n\n"
             "No transactions recorded yet\\.\n\n"
             "_Transactions will appear here after your first allocation\\._",
             parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=history_filter_keyboard(0, 1, action_filter),
         )
         return
 
+    filter_label = f" \\| filter: *{escape_md(action_filter)}*" if action_filter != "all" else ""
     header = (
-        f"📜 *Transaction History* — Page {page + 1}/{total_pages} "
+        f"📜 *Transaction History*{filter_label} — "
+        f"Page {page + 1}/{total_pages} "
         f"\\({escape_md(str(total))} total\\)\n"
     )
     lines = [header]
@@ -458,7 +489,7 @@ async def _send_history_page(update, session, page: int) -> None:
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=history_keyboard(page, total_pages),
+        reply_markup=history_filter_keyboard(page, total_pages, action_filter),
     )
 
 

@@ -12,9 +12,11 @@ Alerts are informational — they do not execute transactions. The dispatcher
 sends a Telegram notification for each triggered alert.
 
 Supported threshold types:
-  - 'apr_above'  -- pool APR has risen above threshold_value %
-  - 'apr_below'  -- pool APR has fallen below threshold_value %
-  - 'tvl_below'  -- pool TVL (USD) has dropped below threshold_value
+  - 'apr_above'      -- pool APR has risen above threshold_value %
+  - 'apr_below'      -- pool APR has fallen below threshold_value %
+  - 'tvl_below'      -- pool TVL (USD) has dropped below threshold_value
+  - 'price_change_pct' -- BNB price has changed by ≥ threshold_value % since
+                         the last cycle (token items with identifier 'BNB')
 
 Watchlist items with an unrecognised threshold_type are skipped with a
 warning log so future threshold types can be added without breaking existing
@@ -189,6 +191,87 @@ def check_pool_alerts(
     return triggered
 
 
+def check_price_alerts(
+    session: Any,
+    prices: Dict[str, float],
+) -> List[Alert]:
+    """
+    Check 'token' watchlist items with threshold_type 'price_change_pct'.
+
+    Compares the current BNB price against session.previous_bnb_price (set
+    on the previous cycle). If the absolute percentage change is ≥ the
+    threshold_value, an Alert is returned.
+
+    Updates session.previous_bnb_price to the current price at the end so
+    the next cycle has a fresh baseline.
+
+    Args:
+        session: UserSession — session.watchlist is read; session.previous_bnb_price
+                 is both read and updated.
+        prices:  Current token prices dict, e.g. {"BNB": 614.82}.
+
+    Returns:
+        List of Alert objects for every price-change threshold that fired.
+    """
+    triggered: List[Alert] = []
+    current_bnb = prices.get("BNB", 0.0)
+
+    for item in session.watchlist:
+        if item.get("item_type") != "token":
+            continue
+        if item.get("threshold_type") != "price_change_pct":
+            continue
+
+        identifier = item.get("identifier", "").upper()
+        if identifier != "BNB":
+            logger.debug(
+                "price_change_pct alert for unknown token '%s' (item %d) -- only BNB supported.",
+                identifier, item.get("id"),
+            )
+            continue
+
+        prev = session.previous_bnb_price
+        if prev is None or prev == 0.0:
+            # No previous price available; store current and skip.
+            logger.debug(
+                "price_change_pct alert %d: no previous BNB price -- storing baseline.",
+                item.get("id"),
+            )
+            continue
+
+        tv = float(item["threshold_value"])
+        pct_change = abs((current_bnb - prev) / prev) * 100.0
+
+        if pct_change >= tv:
+            direction = "risen" if current_bnb > prev else "fallen"
+            triggered.append(
+                Alert(
+                    watch_id=item["id"],
+                    chat_id=item["user_chat_id"],
+                    item_type="token",
+                    identifier=identifier,
+                    threshold_type="price_change_pct",
+                    threshold_value=tv,
+                    current_value=pct_change,
+                    message=(
+                        f"BNB price alert: BNB has {direction} by "
+                        f"{pct_change:.2f}% (from ${prev:,.2f} to ${current_bnb:,.2f}), "
+                        f"exceeding your {tv:.2f}% threshold."
+                    ),
+                )
+            )
+            logger.info(
+                "Price alert triggered for chat_id %d: BNB moved %.2f%%",
+                session.chat_id, pct_change,
+            )
+
+    # Update baseline for the next cycle regardless of whether alerts fired.
+    if current_bnb > 0.0:
+        session.previous_bnb_price = current_bnb
+
+    return triggered
+
+
 def check_all_alerts(
     session: Any,
     snapshot: MarketSnapshot,
@@ -197,20 +280,21 @@ def check_all_alerts(
     """
     Run all supported alert checks for a session.
 
-    Currently checks pool-based alerts (APR and TVL thresholds). Token price
-    alerts require a historical baseline not yet available in this sprint and
-    are left for a future extension.
+    Checks:
+      1. Pool-based alerts — APR above/below and TVL below thresholds.
+      2. Token price-change alerts — BNB price movement ≥ threshold %.
 
     Args:
         session:  UserSession.
         snapshot: Current MarketSnapshot.
         prices:   Current token prices dict, e.g. {"BNB": 614.82}.
-                  Accepted here for future use by token-price alert checking.
 
     Returns:
         Combined list of all triggered Alert objects.
     """
-    return check_pool_alerts(session, snapshot)
+    alerts = check_pool_alerts(session, snapshot)
+    alerts.extend(check_price_alerts(session, prices))
+    return alerts
 
 
 # ---------------------------------------------------------------------------

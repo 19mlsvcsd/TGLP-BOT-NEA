@@ -256,7 +256,29 @@ def pool_detail_keyboard(pool_address: str) -> InlineKeyboardMarkup:
 
 
 # ---------------------------------------------------------------------------
-# History pagination
+# Strategy picker (shown from /settings → Change Strategy)
+# ---------------------------------------------------------------------------
+
+def strategy_picker_keyboard() -> InlineKeyboardMarkup:
+    """
+    Strategy selection keyboard triggered from /settings.
+
+    Allows switching between the four built-in profiles without re-running
+    the full onboarding flow. Callback data uses the cfg_strat_ prefix so
+    callbacks.py can handle them inside _handle_settings.
+    """
+    keyboard = [
+        [InlineKeyboardButton("🛡 Conservative Yield", callback_data="cfg_strat_conservative")],
+        [InlineKeyboardButton("⚖️ Balanced Growth",    callback_data="cfg_strat_balanced")],
+        [InlineKeyboardButton("🚀 Aggressive Alpha",   callback_data="cfg_strat_aggressive")],
+        [InlineKeyboardButton("🔧 Custom Strategy",    callback_data="cfg_strat_custom")],
+        [InlineKeyboardButton("❌ Cancel",              callback_data="cfg_strat_cancel")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+# ---------------------------------------------------------------------------
+# History pagination + filter
 # ---------------------------------------------------------------------------
 
 def history_keyboard(page: int, total_pages: int) -> InlineKeyboardMarkup:
@@ -271,6 +293,52 @@ def history_keyboard(page: int, total_pages: int) -> InlineKeyboardMarkup:
     if nav:
         return InlineKeyboardMarkup([nav])
     return InlineKeyboardMarkup([])
+
+
+def history_filter_keyboard(
+    page: int,
+    total_pages: int,
+    current_filter: str = "all",
+) -> InlineKeyboardMarkup:
+    """
+    History keyboard with action-type filter buttons above the pagination row.
+
+    Tapping a filter button resets to page 0 and re-queries the database with
+    that action_type filter. The active filter is marked with a bullet (•).
+
+    Args:
+        page:           Current 0-based page index.
+        total_pages:    Total number of pages for the current filter.
+        current_filter: Active filter key ('all', 'add_liquidity', 'swap',
+                        'remove_liquidity', 'collect_fees', 'compound').
+    """
+    def _label(key: str, label: str) -> str:
+        return f"• {label}" if current_filter == key else label
+
+    filter_row1 = [
+        InlineKeyboardButton(_label("all", "All"),      callback_data="hist_filter_all"),
+        InlineKeyboardButton(_label("swap", "Swap"),    callback_data="hist_filter_swap"),
+    ]
+    filter_row2 = [
+        InlineKeyboardButton(_label("add_liquidity", "Add LP"),
+                             callback_data="hist_filter_add_liquidity"),
+        InlineKeyboardButton(_label("remove_liquidity", "Remove LP"),
+                             callback_data="hist_filter_remove_liquidity"),
+    ]
+    filter_row3 = [
+        InlineKeyboardButton(_label("collect_fees", "Collect"),
+                             callback_data="hist_filter_collect_fees"),
+        InlineKeyboardButton(_label("compound", "Compound"),
+                             callback_data="hist_filter_compound"),
+    ]
+
+    keyboard = [filter_row1, filter_row2, filter_row3]
+
+    nav = _pagination_row(page, total_pages, prefix="hist_page")
+    if nav:
+        keyboard.append(nav)
+
+    return InlineKeyboardMarkup(keyboard)
 
 
 # ---------------------------------------------------------------------------

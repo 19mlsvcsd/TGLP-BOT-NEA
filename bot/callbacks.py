@@ -68,6 +68,10 @@ async def handle_callback(
     elif data in ("page_noop", "alert_noop"):
         # No-op buttons used as display labels — just dismiss the loading spinner.
         await query.answer()
+    elif data.startswith("cs_"):
+        # cs_confirm / cs_cancel are owned by the custom_strategy_handler
+        # ConversationHandler; if they reach here the conversation has ended.
+        await query.answer("Custom strategy setup is not active.", show_alert=True)
     else:
         await query.answer("This button is not available yet.", show_alert=False)
 
@@ -150,10 +154,66 @@ async def _handle_settings(query, update: Update, context: ContextTypes.DEFAULT_
             bot_scheduler.resume_user_job(chat_id)
             await query.answer("Bot resumed.", show_alert=False)
 
-    elif data in ("cfg_change_strategy", "cfg_change_slippage"):
-        # Strategy and slippage editing require a full conversation — not yet implemented.
+    elif data == "cfg_change_strategy":
+        from bot.keyboards import strategy_picker_keyboard
+        await query.edit_message_text(
+            "📋 *Change Strategy*\n\n"
+            "Choose a new strategy profile\\. Your current position and "
+            "watchlist will be kept\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=strategy_picker_keyboard(),
+        )
+        return  # Don't refresh the settings panel; we've replaced the message.
+
+    elif data == "cfg_strat_cancel":
+        # Return to the settings panel.
+        from bot.keyboards import settings_menu_keyboard
+        await query.edit_message_text(
+            "⚙️ *Settings*\n\n"
+            f"Strategy: {escape_md(session.active_strategy.name)}\n"
+            f"Compounding: {'On' if session.compound_enabled else 'Off'}\n"
+            f"Execution: {'Auto' if session.auto_execute else 'Confirm'}\n"
+            f"Paused: {'Yes' if session.paused else 'No'}\n\n"
+            "_Tap a button to change a setting\\._",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=settings_menu_keyboard(
+                compound_enabled=session.compound_enabled,
+                auto_execute=session.auto_execute,
+            ),
+        )
+        return
+
+    elif data in ("cfg_strat_conservative", "cfg_strat_balanced", "cfg_strat_aggressive"):
+        from config.settings import STRATEGY_PROFILES
+        key_map = {
+            "cfg_strat_conservative": "conservative",
+            "cfg_strat_balanced":     "balanced",
+            "cfg_strat_aggressive":   "aggressive",
+        }
+        strategy_key = key_map[data]
+        new_strategy = STRATEGY_PROFILES.get(strategy_key)
+        if new_strategy is None:
+            await query.answer("Strategy not found.", show_alert=True)
+            return
+        session.active_strategy = new_strategy
+        session.compound_enabled = new_strategy.compound_interval is not None
+        session.auto_execute = new_strategy.auto_execute
+        await query.answer(f"Strategy changed to {new_strategy.name}.", show_alert=False)
+        # Fall through to refresh settings panel.
+
+    elif data == "cfg_strat_custom":
+        # Handled by the custom_strategy_handler ConversationHandler which is
+        # registered before this catch-all. If we get here, direct the user.
+        await query.answer()
+        await query.edit_message_text(
+            "🔧 Use /customstrategy to configure your custom strategy\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    elif data == "cfg_change_slippage":
         await query.answer(
-            "Strategy/slippage editing is not yet available in this build.",
+            "Slippage is set by your strategy profile. Use 'Custom Strategy' to set a custom value.",
             show_alert=True,
         )
         return
@@ -322,14 +382,9 @@ async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE
 # ---------------------------------------------------------------------------
 
 async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Navigate history pages using the database."""
+    """Navigate history pages and handle action-type filter buttons."""
     await query.answer()
     data = query.data
-
-    if not data.startswith("hist_page_"):
-        return
-
-    page = int(data.replace("hist_page_", ""))
     chat_id = update.effective_chat.id
     session = session_manager.get(chat_id)
 
@@ -340,32 +395,54 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
         )
         return
 
+    # Determine new filter and page from callback data.
+    if data.startswith("hist_filter_"):
+        new_filter = data.replace("hist_filter_", "")
+        context.user_data["history_filter"] = new_filter
+        page = 0
+    elif data.startswith("hist_page_"):
+        page = int(data.replace("hist_page_", ""))
+        new_filter = context.user_data.get("history_filter", "all")
+    else:
+        return
+
     from helpers.database import get_trades_for_user, count_trades_for_user
     from helpers.formatters import format_tx_summary
-    from bot.keyboards import history_keyboard
+    from bot.keyboards import history_filter_keyboard
 
-    total = count_trades_for_user(session.chat_id)
+    db_filter = None if new_filter == "all" else new_filter
+    total = count_trades_for_user(session.chat_id, action_filter=db_filter)
     total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
     trades = get_trades_for_user(
         session.chat_id,
         limit=_HISTORY_PAGE_SIZE,
         offset=page * _HISTORY_PAGE_SIZE,
+        action_filter=db_filter,
     )
 
+    filter_label = f" \\| filter: *{escape_md(new_filter)}*" if new_filter != "all" else ""
     header = (
-        f"📜 *Transaction History* — Page {page + 1}/{total_pages} "
+        f"📜 *Transaction History*{filter_label} — "
+        f"Page {page + 1}/{total_pages} "
         f"\\({escape_md(str(total))} total\\)\n"
     )
-    lines = [header]
-    for trade in trades:
-        lines.append(format_tx_summary(trade))
-        lines.append("")
+
+    if not trades:
+        lines = [
+            header,
+            "_No transactions match this filter\\._",
+        ]
+    else:
+        lines = [header]
+        for trade in trades:
+            lines.append(format_tx_summary(trade))
+            lines.append("")
 
     text = "\n".join(lines)
     await query.edit_message_text(
         text,
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=history_keyboard(page, total_pages),
+        reply_markup=history_filter_keyboard(page, total_pages, new_filter),
     )
 
 

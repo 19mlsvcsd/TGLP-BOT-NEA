@@ -398,6 +398,7 @@ def get_all_trades_for_user(
 
 def count_trades_for_user(
     user_chat_id: int,
+    action_filter: Optional[str] = None,
     db_path: str = DB_FILENAME,
 ) -> int:
     """
@@ -406,18 +407,25 @@ def count_trades_for_user(
     Used to calculate the total number of history pages.
 
     Args:
-        user_chat_id: Telegram chat ID.
-        db_path:      Path to the database file.
+        user_chat_id:  Telegram chat ID.
+        action_filter: If provided, only count rows of this action_type.
+        db_path:       Path to the database file.
 
     Returns:
         Integer count of trade rows.
     """
     try:
         conn = get_connection(db_path)
-        row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM trades WHERE user_chat_id = ?",
-            (user_chat_id,),
-        ).fetchone()
+        if action_filter:
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM trades WHERE user_chat_id = ? AND action_type = ?",
+                (user_chat_id, action_filter),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM trades WHERE user_chat_id = ?",
+                (user_chat_id,),
+            ).fetchone()
         conn.close()
         return row["cnt"] if row else 0
     except sqlite3.Error as e:
