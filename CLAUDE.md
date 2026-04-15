@@ -385,13 +385,69 @@ project state before making any changes.
 - `get_system_health` is ready for the /status command (Sprint 11)
 
 ### Next Sprint
-- Sprint 9: Portfolio & Watchlist
-  - `core/portfolio.py`: P&L tracking, unrealised gain/loss calculation, position value in BNB and USD
-  - `core/watchlist.py`: watchlist CRUD bridging in-memory session state and SQLite
-  - `core/alerts.py`: threshold-based price/APR alerts for watchlist items
+- Sprint 9: complete — see entry below.
 
 ### Notes
 - `run_pre_execution_checks` check order: session_state → gas_price → gas_reserve → position_size. Session and gas checks come before balance reads so the cheapest failures are caught first.
 - `wallet_balance_bnb` optional parameter on `run_pre_execution_checks` allows the dispatcher to pass a pre-read balance (saving one RPC call) or tests to inject a specific value without needing a funded address.
 - Precompile address `0x000...001` has non-zero BNB on BSC Testnet — do not use it as a "zero balance" test address. Pass `wallet_balance_bnb=0.0` directly instead.
 - `_consecutive_anomalies` dict is keyed by `chat_id` (int). The counter persists for the lifetime of the process; `reset_anomaly_counter` should be called whenever the user clears a safety lock.
+
+---
+
+## Sprint 9 — Portfolio & Watchlist — 2026-04-15
+
+### Completed
+- Implemented `core/portfolio.py`:
+  - `PositionValue` dataclass: amount0/amount1 (human-readable), token symbols, value_usd, value_bnb, bnb_price_used
+  - `PnLResult` dataclass: entry_value_usd, current_value_usd, unrealised P&L (USD + %), gas_spent_bnb, gas_cost_usd, net_pnl_usd, rebalance_count
+  - `PortfolioSummary` dataclass: has_position, position_value, pnl, wallet_bnb, wallet_usd
+  - `_token_usd_value(amount, symbol, bnb_price)`: stablecoins→$1, WBNB/BNB→×price, unknown→$0 (conservative)
+  - `estimate_position_value(position_dict, bnb_price_usd)`: converts token amounts to USD using conservative pricing
+  - `calculate_pnl(session, current_value_usd, bnb_price_usd)`: full P&L breakdown; 0% change when entry=0
+  - `record_entry_value(session, value_usd)`: sets session.entry_value_usd (called by dispatcher after allocate)
+  - `record_gas_cost(session, gas_cost_bnb)`: accumulates session.total_gas_spent_bnb
+  - `build_portfolio_summary(w3, session, bnb_price_usd)`: one live RPC call for wallet balance; all other data from session
+- Implemented `core/watchlist.py`:
+  - `MAX_WATCHLIST_ITEMS = 20` cap to bound alert-checking loop
+  - `load_watchlist(session)`: replaces session.watchlist from SQLite
+  - `add_watch_item(session, item_type, identifier, threshold_type, threshold_value)`: writes to DB then appends to in-memory list; returns watch_id or -1 if full/failed
+  - `remove_watch_item(session, watch_id)`: soft-deletes from DB (active=0) then removes from in-memory list; user_chat_id check prevents cross-user deletion
+  - `get_watch_item(session, watch_id)`: in-memory lookup by ID; None if not found
+  - `count_watch_items(session)`: len(session.watchlist)
+- Implemented `core/alerts.py`:
+  - `Alert` dataclass: watch_id, chat_id, item_type, identifier, threshold_type, threshold_value, current_value, message
+  - `_check_pool_item(item, pool_data)`: internal helper — checks apr_above / apr_below / tvl_below for one item; returns Alert or None; unknown threshold_type is logged and skipped
+  - `check_pool_alerts(session, snapshot)`: iterates session.watchlist for pool items; silently skips pools not in snapshot
+  - `check_all_alerts(session, snapshot, prices)`: delegates to check_pool_alerts; prices dict accepted for future token price alerts
+  - `format_alert_message(alert)`: prepends "[ALERT] " to alert.message
+- Created `tests/test_sprint9.py`: 20 tests across two tiers
+
+### Files Created/Modified
+- `core/portfolio.py` — portfolio valuation and P&L module
+- `core/watchlist.py` — watchlist session/DB bridge
+- `core/alerts.py` — watchlist alert checking
+- `tests/test_sprint9.py` — Sprint 9 test suite
+
+### Tested
+- Portfolio: stablecoin pair value=$800, WBNB+USDT value=$900, unknown tokens=$0, P&L profit/loss/zero, record_entry_value, record_gas_cost accumulation
+- Watchlist: add item (in-memory count), add+remove (DB deactivate + in-memory removal), load 2 items from temp DB, get_watch_item by ID and missing
+- Alerts: apr_below fires (3% < 5%), apr_above fires (25% > 20%), tvl_below fires ($80k < $100k), no-trigger case, missing pool skipped, format_alert_message, check_all_alerts
+- Live: build_portfolio_summary on 0x000...001 (32 BNB on testnet), has_position=False, P&L all zeros, wallet_usd = wallet_bnb × 600
+
+### Current State
+- Full portfolio and watchlist layer is working
+- ready for the dispatcher (Sprint 10) to call record_entry_value/record_gas_cost after executions
+- Alerts are ready for the scheduler to call check_all_alerts each cycle
+
+### Next Sprint
+- Sprint 10: Scheduler & Dispatcher
+  - `core/scheduler.py`: APScheduler wrapper, per-user job management, cycle timing
+  - `core/dispatcher.py`: full analysis-decision-execution pipeline per user cycle
+
+### Notes
+- `estimate_position_value` uses conservative pricing: stablecoins at $1, WBNB/BNB at live price, all other tokens at $0. This prevents overstatement of P&L but will undercount value when exotic tokens are involved.
+- Token symbols are compared lowercase. Position dicts must include `token0_symbol` and `token1_symbol` as strings — executor.py should populate these when setting session.current_position.
+- `check_all_alerts` accepts `prices` dict for future token-price alert checking; currently only pool-based alerts are implemented.
+- Watchlist tests use `tempfile.mkstemp()` for isolated DB files, then `os.unlink()` for cleanup. The default DB (tglp_bot.db) is never touched by tests.
+- The precompile address `0x000...001` has ~32 BNB on BSC Testnet (confirmed in live test). Do not rely on it for "zero balance" scenarios.
