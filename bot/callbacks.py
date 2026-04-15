@@ -68,6 +68,8 @@ async def handle_callback(
     elif data in ("page_noop", "alert_noop"):
         # No-op buttons used as display labels — just dismiss the loading spinner.
         await query.answer()
+    elif data.startswith("export_"):
+        await _handle_export(query, update, context)
     elif data.startswith("cs_"):
         # cs_confirm / cs_cancel are owned by the custom_strategy_handler
         # ConversationHandler; if they reach here the conversation has ended.
@@ -382,7 +384,14 @@ async def _handle_pool(query, update: Update, context: ContextTypes.DEFAULT_TYPE
 # ---------------------------------------------------------------------------
 
 async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Navigate history pages and handle action-type filter buttons."""
+    """
+    Navigate history pages and handle action-type / date-range filter buttons.
+
+    Callback data patterns handled:
+      hist_filter_<key>  — set action-type filter, reset to page 0
+      hist_date_<key>    — set date-range filter, reset to page 0
+      hist_page_<n>      — paginate with current filters intact
+    """
     await query.answer()
     data = query.data
     chat_id = update.effective_chat.id
@@ -395,32 +404,47 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
         )
         return
 
-    # Determine new filter and page from callback data.
+    # Decode which dimension changed and what the new values are.
     if data.startswith("hist_filter_"):
-        new_filter = data.replace("hist_filter_", "")
-        context.user_data["history_filter"] = new_filter
+        context.user_data["history_filter"] = data.replace("hist_filter_", "")
+        page = 0
+    elif data.startswith("hist_date_"):
+        context.user_data["history_date"] = data.replace("hist_date_", "")
         page = 0
     elif data.startswith("hist_page_"):
         page = int(data.replace("hist_page_", ""))
-        new_filter = context.user_data.get("history_filter", "all")
     else:
         return
+
+    action_filter = context.user_data.get("history_filter", "all")
+    date_filter   = context.user_data.get("history_date",   "all")
 
     from helpers.database import get_trades_for_user, count_trades_for_user
     from helpers.formatters import format_tx_summary
     from bot.keyboards import history_filter_keyboard
 
-    db_filter = None if new_filter == "all" else new_filter
-    total = count_trades_for_user(session.chat_id, action_filter=db_filter)
+    db_filter  = None if action_filter == "all" else action_filter
+    since_days = None if date_filter == "all" else int(date_filter)
+
+    total = count_trades_for_user(
+        session.chat_id, action_filter=db_filter, since_days=since_days
+    )
     total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
     trades = get_trades_for_user(
         session.chat_id,
         limit=_HISTORY_PAGE_SIZE,
         offset=page * _HISTORY_PAGE_SIZE,
         action_filter=db_filter,
+        since_days=since_days,
     )
 
-    filter_label = f" \\| filter: *{escape_md(new_filter)}*" if new_filter != "all" else ""
+    filter_parts = []
+    if action_filter != "all":
+        filter_parts.append(escape_md(action_filter))
+    if date_filter != "all":
+        filter_parts.append(f"last {escape_md(date_filter)}d")
+    filter_label = (" \\| " + ", ".join(filter_parts)) if filter_parts else ""
+
     header = (
         f"📜 *Transaction History*{filter_label} — "
         f"Page {page + 1}/{total_pages} "
@@ -428,10 +452,7 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
     )
 
     if not trades:
-        lines = [
-            header,
-            "_No transactions match this filter\\._",
-        ]
+        lines = [header, "_No transactions match these filters\\._"]
     else:
         lines = [header]
         for trade in trades:
@@ -442,7 +463,7 @@ async def _handle_history(query, update: Update, context: ContextTypes.DEFAULT_T
     await query.edit_message_text(
         text,
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=history_filter_keyboard(page, total_pages, new_filter),
+        reply_markup=history_filter_keyboard(page, total_pages, action_filter, date_filter),
     )
 
 
@@ -612,3 +633,43 @@ async def _handle_reset(query, update: Update, context: ContextTypes.DEFAULT_TYP
             "❌ Reset cancelled\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
+
+
+# ---------------------------------------------------------------------------
+# Export format selection (export_*)
+# ---------------------------------------------------------------------------
+
+async def _handle_export(query, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the export format selection keyboard from /export.
+
+    export_fmt_text — sends the trade history as formatted MarkdownV2 text.
+    export_fmt_csv  — sends the trade history as a downloadable .csv file.
+    """
+    await query.answer()
+    data = query.data
+    chat_id = update.effective_chat.id
+    session = session_manager.get(chat_id)
+
+    if not session:
+        await query.edit_message_text(
+            "⚠️ Session not found\\. Run /start to set up\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    if data == "export_fmt_text":
+        await query.edit_message_text(
+            "⏳ Generating text export\\.\\.\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        from bot.commands import _send_export_text
+        await _send_export_text(query.message, session)
+
+    elif data == "export_fmt_csv":
+        await query.edit_message_text(
+            "⏳ Generating CSV file\\.\\.\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        from bot.commands import _send_export_csv
+        await _send_export_csv(query.message, session)

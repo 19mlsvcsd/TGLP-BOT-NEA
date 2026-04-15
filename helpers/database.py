@@ -322,11 +322,30 @@ def update_trade_status(
         return False
 
 
+def _date_cutoff(since_days: int) -> str:
+    """
+    Return an ISO-format timestamp string for `since_days` days ago (UTC).
+
+    SQLite stores timestamps as ISO strings, which sort lexicographically in
+    the same order as chronologically, so a ``timestamp >= cutoff`` WHERE
+    clause gives a correct date-range filter without a date-aware SQL function.
+
+    Args:
+        since_days: Number of days to look back (e.g., 7 or 30).
+
+    Returns:
+        ISO-format string, e.g. ``"2026-04-08T12:30:00"``.
+    """
+    from datetime import timedelta
+    return (datetime.utcnow() - timedelta(days=since_days)).isoformat(timespec="seconds")
+
+
 def get_trades_for_user(
     user_chat_id: int,
     limit: int = 20,
     offset: int = 0,
     action_filter: Optional[str] = None,
+    since_days: Optional[int] = None,
     db_path: str = DB_FILENAME,
 ) -> List[Dict[str, Any]]:
     """
@@ -337,6 +356,7 @@ def get_trades_for_user(
         limit:         Number of rows per page (for /history pagination).
         offset:        Row offset (page * limit).
         action_filter: If provided, only return rows of this action_type.
+        since_days:    If provided, only return rows from the last N days.
         db_path:       Path to the database file.
 
     Returns:
@@ -344,24 +364,26 @@ def get_trades_for_user(
     """
     try:
         conn = get_connection(db_path)
+
+        # Build WHERE conditions dynamically to handle all filter combinations.
+        conditions = ["user_chat_id = ?"]
+        params: list = [user_chat_id]
+
         if action_filter:
-            rows = conn.execute(
-                """
-                SELECT * FROM trades
-                WHERE user_chat_id = ? AND action_type = ?
-                ORDER BY id DESC LIMIT ? OFFSET ?
-                """,
-                (user_chat_id, action_filter, limit, offset),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                SELECT * FROM trades
-                WHERE user_chat_id = ?
-                ORDER BY id DESC LIMIT ? OFFSET ?
-                """,
-                (user_chat_id, limit, offset),
-            ).fetchall()
+            conditions.append("action_type = ?")
+            params.append(action_filter)
+
+        if since_days is not None:
+            conditions.append("timestamp >= ?")
+            params.append(_date_cutoff(since_days))
+
+        where = " AND ".join(conditions)
+        params.extend([limit, offset])
+
+        rows = conn.execute(
+            f"SELECT * FROM trades WHERE {where} ORDER BY id DESC LIMIT ? OFFSET ?",
+            params,
+        ).fetchall()
         conn.close()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
@@ -399,6 +421,7 @@ def get_all_trades_for_user(
 def count_trades_for_user(
     user_chat_id: int,
     action_filter: Optional[str] = None,
+    since_days: Optional[int] = None,
     db_path: str = DB_FILENAME,
 ) -> int:
     """
@@ -409,6 +432,7 @@ def count_trades_for_user(
     Args:
         user_chat_id:  Telegram chat ID.
         action_filter: If provided, only count rows of this action_type.
+        since_days:    If provided, only count rows from the last N days.
         db_path:       Path to the database file.
 
     Returns:
@@ -416,16 +440,23 @@ def count_trades_for_user(
     """
     try:
         conn = get_connection(db_path)
+
+        conditions = ["user_chat_id = ?"]
+        params: list = [user_chat_id]
+
         if action_filter:
-            row = conn.execute(
-                "SELECT COUNT(*) as cnt FROM trades WHERE user_chat_id = ? AND action_type = ?",
-                (user_chat_id, action_filter),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT COUNT(*) as cnt FROM trades WHERE user_chat_id = ?",
-                (user_chat_id,),
-            ).fetchone()
+            conditions.append("action_type = ?")
+            params.append(action_filter)
+
+        if since_days is not None:
+            conditions.append("timestamp >= ?")
+            params.append(_date_cutoff(since_days))
+
+        where = " AND ".join(conditions)
+        row = conn.execute(
+            f"SELECT COUNT(*) as cnt FROM trades WHERE {where}",
+            params,
+        ).fetchone()
         conn.close()
         return row["cnt"] if row else 0
     except sqlite3.Error as e:

@@ -689,3 +689,49 @@ A post-Sprint-12 spec review identified three features from the original build p
 - `previous_bnb_price` is `None` on first cycle. `check_price_alerts` stores the baseline without firing, so the first alert requires at least two cycles.
 - The `history_filter_keyboard` replaces `history_keyboard` in all display paths — existing code in `bot/commands.py` and `bot/callbacks.py` uses `history_filter_keyboard` directly.
 - `count_trades_for_user` default `action_filter=None` is backwards-compatible; all existing callers that don't pass the argument continue to work unchanged.
+
+---
+
+## Sprint 14 — History Date Filters & CSV Export — 2026-04-15
+
+### Motivation
+Final spec check (post-Sprint 13) identified two remaining minor gaps:
+1. `/history` filter options: action-type filter was implemented in Sprint 13, but "by date range" was also listed in the original spec. Date range buttons (Last 7 days / Last 30 days / All time) were missing.
+2. `/export` format: the spec says "formatted text message or CSV-style output". Only plain text was implemented. A proper downloadable CSV file was missing.
+
+### Completed
+
+#### Feature 1: History Date Range Filter
+- Added `since_days: Optional[int] = None` parameter to both `get_trades_for_user` and `count_trades_for_user` in `helpers/database.py`. SQL conditions are now built dynamically to handle all combinations of action-type and date-range filters cleanly.
+- Added `_date_cutoff(since_days)` helper in `helpers/database.py` — computes the ISO-format UTC timestamp for N days ago. SQLite ISO string comparison is lexicographically equivalent to chronological order, so no SQL date functions are needed.
+- Updated `history_filter_keyboard(page, total_pages, current_filter, current_date)` in `bot/keyboards.py` to accept a `current_date` parameter and display a fourth row: "📅 All time | 📅 Last 7d | 📅 Last 30d" with callback data `hist_date_all`, `hist_date_7`, `hist_date_30`. Active date marked with (•).
+- Updated `_send_history_page` in `bot/commands.py` to read `context.user_data["history_date"]`, convert to `since_days`, and pass to both `count_trades_for_user` and `get_trades_for_user`.
+- Updated `history_command` to also clear `history_date` from user_data on fresh `/history` invocation.
+- Updated `_handle_history` in `bot/callbacks.py` to handle `hist_date_*` callbacks (set date filter, reset to page 0) alongside existing `hist_filter_*` (action type) and `hist_page_*` (pagination) callbacks. Both filter dimensions are preserved across page turns.
+
+#### Feature 2: CSV Export
+- Updated `export_command` in `bot/commands.py`: instead of generating text immediately, it now shows the trade count and an `export_format_keyboard()` with "📄 Text format" and "📊 CSV file" buttons.
+- Added `export_format_keyboard()` to `bot/keyboards.py` — two-button keyboard with `export_fmt_text` and `export_fmt_csv` callback data.
+- Extracted text generation logic from `export_command` into `_send_export_text(update_or_query, session)` — a shared helper that chunks the formatted text into ≤3800-char messages.
+- Added `_send_export_csv(update_or_query, session)` — uses Python's `csv.DictWriter` and `io.BytesIO` to build an in-memory CSV and sends it as a proper downloadable `.csv` attachment via `reply_document()`. Columns: id, timestamp, action_type, pool_address, token_in, token_out, amount_in, amount_out, tx_hash, status, gas_used, gas_cost_bnb.
+- Added `_handle_export` to `bot/callbacks.py` and wired the `export_*` prefix into the `handle_callback` dispatch router.
+
+### Files Created/Modified
+- `helpers/database.py` — `_date_cutoff()` helper; `since_days` param on `get_trades_for_user` and `count_trades_for_user`
+- `bot/keyboards.py` — `history_filter_keyboard` gains `current_date` param and date-row; new `export_format_keyboard()`
+- `bot/commands.py` — `_send_history_page` and `history_command` updated for date filter; `export_command` replaced with format-picker; `_send_export_text` and `_send_export_csv` added
+- `bot/callbacks.py` — `_handle_history` handles `hist_date_*`; `export_*` added to router; `_handle_export` added
+
+### Tested
+- All imports compile cleanly: `py -c "from bot.commands import _send_export_csv; ..."` → OK
+
+### Current State
+- **All original spec requirements are now met.** Both minor gaps identified in the Sprint 13 final check are closed:
+  - `/history` supports two independent filter dimensions: action type and date range
+  - `/export` delivers both a human-readable text export and a downloadable CSV file
+
+### Notes
+- `_date_cutoff` uses `datetime.utcnow()` consistent with how `insert_log` / `insert_trade` write timestamps (also UTC). No timezone conversion is needed.
+- Both `_send_export_text` and `_send_export_csv` accept `query.message` (a `Message` object) so they work correctly when called from a callback context.
+- `reply_document()` sends the CSV as a Telegram file attachment — the user receives a downloadable `.csv` they can open in Excel or any spreadsheet app.
+- Sprint 14 is the final sprint. The project is fully spec-complete.

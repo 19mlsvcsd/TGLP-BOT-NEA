@@ -413,14 +413,15 @@ async def history_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /history — paginated list of all transactions with action-type filter.
+    /history — paginated list of all transactions with action-type and date filters.
     """
     if not await _require_session(update):
         return
 
     session = session_manager.get(update.effective_chat.id)
-    # Clear any stale filter when /history is called fresh.
+    # Clear any stale filters when /history is called fresh.
     context.user_data.pop("history_filter", None)
+    context.user_data.pop("history_date", None)
     await _send_history_page(update, session, page=0, context=context)
 
 
@@ -430,51 +431,65 @@ async def _send_history_page(
     page: int,
     context=None,
     action_filter: str = "all",
+    date_filter: str = "all",
 ) -> None:
     """
     Render one page of trade history and send it.
+
+    Reads the active action-type and date-range filters from context.user_data
+    when context is supplied (overrides the direct parameters).
 
     Args:
         update:        Telegram Update object.
         session:       UserSession for the requesting user.
         page:          0-based page index.
-        context:       ContextTypes.DEFAULT_TYPE — read history_filter from
-                       user_data if present (overrides action_filter arg).
-        action_filter: Active filter key; 'all' means no filter.
+        context:       ContextTypes.DEFAULT_TYPE — reads 'history_filter' and
+                       'history_date' from user_data when present.
+        action_filter: Active action-type key; 'all' means no filter.
+        date_filter:   Active date-range key; 'all' = no limit, '7' = last 7
+                       days, '30' = last 30 days.
     """
     from helpers.database import get_trades_for_user, count_trades_for_user
     from helpers.formatters import format_tx_summary
     from bot.keyboards import history_filter_keyboard
 
-    # Prefer the stored filter in context over the parameter.
     if context is not None:
         action_filter = context.user_data.get("history_filter", action_filter)
+        date_filter   = context.user_data.get("history_date",   date_filter)
 
-    db_filter = None if action_filter == "all" else action_filter
+    db_filter  = None if action_filter == "all" else action_filter
+    since_days = None if date_filter == "all" else int(date_filter)
 
-    total = count_trades_for_user(session.chat_id, action_filter=db_filter)
+    total = count_trades_for_user(
+        session.chat_id, action_filter=db_filter, since_days=since_days
+    )
     total_pages = max(1, math.ceil(total / _HISTORY_PAGE_SIZE))
     trades = get_trades_for_user(
         session.chat_id,
         limit=_HISTORY_PAGE_SIZE,
         offset=page * _HISTORY_PAGE_SIZE,
         action_filter=db_filter,
+        since_days=since_days,
     )
 
+    # Build filter summary for the header line.
+    filter_parts = []
+    if action_filter != "all":
+        filter_parts.append(escape_md(action_filter))
+    if date_filter != "all":
+        filter_parts.append(f"last {escape_md(date_filter)}d")
+    filter_label = (" \\| " + ", ".join(filter_parts)) if filter_parts else ""
+
     if not trades and page == 0:
-        filter_note = (
-            f" \\(filter: *{escape_md(action_filter)}*\\)" if action_filter != "all" else ""
-        )
         await update.message.reply_text(
-            f"📜 *Transaction History*{filter_note}\n\n"
-            "No transactions recorded yet\\.\n\n"
-            "_Transactions will appear here after your first allocation\\._",
+            f"📜 *Transaction History*{filter_label}\n\n"
+            "No transactions match these filters\\.\n\n"
+            "_Try clearing the filters or run /allocate to record your first trade\\._",
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=history_filter_keyboard(0, 1, action_filter),
+            reply_markup=history_filter_keyboard(0, 1, action_filter, date_filter),
         )
         return
 
-    filter_label = f" \\| filter: *{escape_md(action_filter)}*" if action_filter != "all" else ""
     header = (
         f"📜 *Transaction History*{filter_label} — "
         f"Page {page + 1}/{total_pages} "
@@ -489,7 +504,7 @@ async def _send_history_page(
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=history_filter_keyboard(page, total_pages, action_filter),
+        reply_markup=history_filter_keyboard(page, total_pages, action_filter, date_filter),
     )
 
 
@@ -501,30 +516,54 @@ async def export_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    /export — send the complete trade history as formatted text.
+    /export — choose between a formatted-text export and a CSV file download.
 
-    Splits into multiple messages if the history exceeds Telegram's 4096-
-    character message limit.
+    Displays a format selection keyboard. The actual generation is handled in
+    bot/callbacks.py (_handle_export) when the user taps one of the buttons.
     """
     if not await _require_session(update):
         return
 
     session = session_manager.get(update.effective_chat.id)
 
-    from helpers.database import get_all_trades_for_user
-    from helpers.formatters import format_tx_summary
+    from helpers.database import count_trades_for_user
+    from bot.keyboards import export_format_keyboard
 
-    trades = get_all_trades_for_user(session.chat_id)
+    total = count_trades_for_user(session.chat_id)
 
-    if not trades:
+    if total == 0:
         await update.message.reply_text(
             "📤 *Export*\n\nNo trades to export yet\\.",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
-    # Build one string per trade and batch into ≤3800-char chunks.
+    await update.message.reply_text(
+        f"📤 *Export Trade History*\n\n"
+        f"{escape_md(str(total))} trade{'s' if total != 1 else ''} on record\\.\n\n"
+        f"Choose your preferred format:",
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=export_format_keyboard(),
+    )
+
+
+async def _send_export_text(update_or_query, session) -> None:
+    """
+    Generate and send the full trade history as formatted MarkdownV2 text.
+
+    Shared by the /export text callback. Splits into ≤3800-char chunks so
+    no single message exceeds Telegram's limit.
+
+    Args:
+        update_or_query: The Update or CallbackQuery to reply to.
+        session:         UserSession for the requesting user.
+    """
+    from helpers.database import get_all_trades_for_user
+    from helpers.formatters import format_tx_summary
+
+    trades = get_all_trades_for_user(session.chat_id)
     entries = [format_tx_summary(t) for t in trades]
+
     chunks: list[str] = []
     current = ""
     for entry in entries:
@@ -538,13 +577,70 @@ async def export_command(
         chunks.append(current.rstrip())
 
     header = (
-        f"📤 *Trade History Export*\n"
+        f"📤 *Trade History Export \\(Text\\)*\n"
         f"{escape_md(str(len(trades)))} trades "
         f"\\({escape_md(str(len(chunks)))} message{'' if len(chunks) == 1 else 's'}\\)\n"
     )
-    await update.message.reply_text(header, parse_mode=ParseMode.MARKDOWN_V2)
+
+    # reply_to works for both Update.message and CallbackQuery.message
+    msg = (
+        update_or_query.message
+        if hasattr(update_or_query, "message")
+        else update_or_query
+    )
+    await msg.reply_text(header, parse_mode=ParseMode.MARKDOWN_V2)
     for chunk in chunks:
-        await update.message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN_V2)
+        await msg.reply_text(chunk, parse_mode=ParseMode.MARKDOWN_V2)
+
+
+async def _send_export_csv(update_or_query, session) -> None:
+    """
+    Generate and send the full trade history as a downloadable CSV file.
+
+    Uses Telegram's send_document API to deliver a proper .csv attachment
+    that can be opened in a spreadsheet application.
+
+    Args:
+        update_or_query: The Update or CallbackQuery to reply to.
+        session:         UserSession for the requesting user.
+    """
+    import csv
+    import io
+
+    from helpers.database import get_all_trades_for_user
+
+    trades = get_all_trades_for_user(session.chat_id)
+
+    # Column order matches the trades table schema.
+    fields = [
+        "id", "timestamp", "action_type", "pool_address",
+        "token_in", "token_out", "amount_in", "amount_out",
+        "tx_hash", "status", "gas_used", "gas_cost_bnb",
+    ]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for trade in trades:
+        writer.writerow({f: trade.get(f, "") for f in fields})
+
+    csv_bytes = output.getvalue().encode("utf-8")
+    bio = io.BytesIO(csv_bytes)
+    bio.name = "trade_history.csv"
+
+    msg = (
+        update_or_query.message
+        if hasattr(update_or_query, "message")
+        else update_or_query
+    )
+    await msg.reply_document(
+        document=bio,
+        filename="trade_history.csv",
+        caption=(
+            f"📊 Trade history export — {len(trades)} "
+            f"trade{'s' if len(trades) != 1 else ''}"
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

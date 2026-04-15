@@ -299,45 +299,79 @@ def history_filter_keyboard(
     page: int,
     total_pages: int,
     current_filter: str = "all",
+    current_date: str = "all",
 ) -> InlineKeyboardMarkup:
     """
-    History keyboard with action-type filter buttons above the pagination row.
+    History keyboard with action-type and date-range filter buttons above
+    the pagination row.
 
-    Tapping a filter button resets to page 0 and re-queries the database with
-    that action_type filter. The active filter is marked with a bullet (•).
+    Tapping an action filter resets to page 0. Tapping a date filter also
+    resets to page 0. The active button in each group is marked with (•).
 
     Args:
         page:           Current 0-based page index.
-        total_pages:    Total number of pages for the current filter.
-        current_filter: Active filter key ('all', 'add_liquidity', 'swap',
-                        'remove_liquidity', 'collect_fees', 'compound').
+        total_pages:    Total number of pages for the active filters.
+        current_filter: Active action-type filter key. One of:
+                        'all', 'swap', 'add_liquidity', 'remove_liquidity',
+                        'collect_fees', 'compound'.
+        current_date:   Active date-range filter key. One of:
+                        'all', '7', '30'.
     """
-    def _label(key: str, label: str) -> str:
+    def _af(key: str, label: str) -> str:
+        """Mark active action filter."""
         return f"• {label}" if current_filter == key else label
 
+    def _df(key: str, label: str) -> str:
+        """Mark active date filter."""
+        return f"• {label}" if current_date == key else label
+
+    # ── Action-type rows ──────────────────────────────────────────────────
     filter_row1 = [
-        InlineKeyboardButton(_label("all", "All"),      callback_data="hist_filter_all"),
-        InlineKeyboardButton(_label("swap", "Swap"),    callback_data="hist_filter_swap"),
+        InlineKeyboardButton(_af("all", "All"),   callback_data="hist_filter_all"),
+        InlineKeyboardButton(_af("swap", "Swap"), callback_data="hist_filter_swap"),
     ]
     filter_row2 = [
-        InlineKeyboardButton(_label("add_liquidity", "Add LP"),
+        InlineKeyboardButton(_af("add_liquidity", "Add LP"),
                              callback_data="hist_filter_add_liquidity"),
-        InlineKeyboardButton(_label("remove_liquidity", "Remove LP"),
+        InlineKeyboardButton(_af("remove_liquidity", "Remove LP"),
                              callback_data="hist_filter_remove_liquidity"),
     ]
     filter_row3 = [
-        InlineKeyboardButton(_label("collect_fees", "Collect"),
+        InlineKeyboardButton(_af("collect_fees", "Collect"),
                              callback_data="hist_filter_collect_fees"),
-        InlineKeyboardButton(_label("compound", "Compound"),
+        InlineKeyboardButton(_af("compound", "Compound"),
                              callback_data="hist_filter_compound"),
     ]
 
-    keyboard = [filter_row1, filter_row2, filter_row3]
+    # ── Date-range row ────────────────────────────────────────────────────
+    date_row = [
+        InlineKeyboardButton(_df("all", "📅 All time"),    callback_data="hist_date_all"),
+        InlineKeyboardButton(_df("7",   "📅 Last 7d"),     callback_data="hist_date_7"),
+        InlineKeyboardButton(_df("30",  "📅 Last 30d"),    callback_data="hist_date_30"),
+    ]
+
+    keyboard = [filter_row1, filter_row2, filter_row3, date_row]
 
     nav = _pagination_row(page, total_pages, prefix="hist_page")
     if nav:
         keyboard.append(nav)
 
+    return InlineKeyboardMarkup(keyboard)
+
+
+def export_format_keyboard() -> InlineKeyboardMarkup:
+    """
+    Format selection keyboard for the /export command.
+
+    Lets the user choose between a human-readable text export and a
+    machine-readable CSV file download.
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton("📄 Text format", callback_data="export_fmt_text"),
+            InlineKeyboardButton("📊 CSV file",    callback_data="export_fmt_csv"),
+        ]
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 
